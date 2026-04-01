@@ -1,27 +1,49 @@
-# Nghiep vu quan ly khach san (ban mau)
+# Nghiệp vụ quản lý khách sạn (bản đầy đủ)
 
-## 1) Danh sach nghiep vu can co
-- Quan ly phong: them/sua/xoa mem, xem trang thai.
-- Dat phong: tao don dat phong, kiem tra trung lich.
-- Nhan phong/tra phong: cap nhat trang thai don.
-- Thanh toan: tinh tong tien theo so dem va loai phong.
-- Bao cao: ty le lap day, doanh thu theo thang.
+## 1) Các phân hệ đã có trong project
+- Quản lý phòng.
+- Quản lý khách hàng.
+- Đặt phòng và kiểm tra trùng lịch.
+- Nhận phòng / trả phòng / hủy đặt phòng.
+- Quản lý dịch vụ phát sinh theo từng booking.
+- Xuất hóa đơn sau khi trả phòng.
 
-## 2) Luong dat phong co ban
-1. Nhan thong tin: `roomId`, `checkInDate`, `checkOutDate`, thong tin khach.
-2. Kiem tra ngay hop le: check-out phai lon hon check-in.
-3. Kiem tra phong ton tai va con hoat dong.
-4. Kiem tra trung lich dat phong.
-5. Tinh tong tien = `soDem * giaPhong`.
-6. Tao ban ghi booking.
+## 2) Luồng nghiệp vụ chính
+1. Tạo khách hàng (`Customers`).
+2. Tạo đặt phòng (`Bookings`) với kiểm tra trùng lịch.
+3. Khi khách đến: chuyển trạng thái sang `CheckedIn`.
+4. Trong lúc ở: thêm dịch vụ phát sinh (`BookingServices`).
+5. Khi khách trả: chuyển trạng thái sang `CheckedOut`.
+6. Xuất hóa đơn (`Invoices`) để chốt thanh toán.
 
-## 3) API da tao trong project
-- `GET /api/rooms`: lay danh sach phong.
-- `GET /api/bookings`: lay danh sach dat phong.
-- `POST /api/bookings`: tao dat phong moi.
+## 3) API hiện có
+- **Phòng**
+  - `GET /api/rooms`
+- **Khách hàng**
+  - `GET /api/customers`
+  - `POST /api/customers`
+- **Đặt phòng**
+  - `GET /api/bookings`
+  - `POST /api/bookings`
+  - `PUT /api/bookings/{id}/check-in`
+  - `PUT /api/bookings/{id}/check-out`
+  - `PUT /api/bookings/{id}/cancel`
+- **Dịch vụ khách sạn**
+  - `GET /api/hotelservices`
+  - `POST /api/hotelservices`
+- **Dịch vụ theo đơn đặt phòng**
+  - `POST /api/bookingservices`
+- **Hóa đơn**
+  - `GET /api/invoices`
+  - `POST /api/invoices`
 
-## 4) Script SQL trong thu muc `db/hotel-sqlserver`
-Chay theo thu tu:
+## 4) Kết nối SQL Server
+- Database: `HotelManagement`
+- SQL Server: `KOKOKOVN\SQLEXPRESS`
+- Cấu hình nằm ở: `HotelManagement.Api/appsettings.json`
+
+## 5) Script SQL trong thư mục `db/hotel-sqlserver`
+Chạy theo thứ tự:
 1. `01_create_database.sql`
 2. `02_schema_tables.sql`
 3. `03_indexes.sql`
@@ -29,8 +51,8 @@ Chay theo thu tu:
 5. `05_stored_procedures.sql`
 6. `06_seed_data.sql`
 
-## 5) Huong dan nang cap tiep
-- Chuyen InMemory sang SQL Server (`UseSqlServer`).
-- Them JWT dang nhap cho admin/le tan.
-- Them migration va repository pattern.
-- Them module khach hang, hoa don, dich vu phong.
+## 6) Gợi ý hoàn thiện web đầy đủ
+- Thêm đăng nhập JWT + phân quyền (Admin, Lễ tân).
+- Thêm module nhân viên, ca làm, báo cáo doanh thu.
+- Tạo frontend (React/Angular hoặc Razor Pages).
+- Tạo migration thay cho `EnsureCreated()` khi lên production.

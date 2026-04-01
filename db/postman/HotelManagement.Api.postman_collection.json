@@ -1,0 +1,213 @@
+{
+  "info": {
+    "_postman_id": "7e328ca8-1bdd-4f10-a965-0f9aa9b6f3fe",
+    "name": "HotelManagement API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Login (admin)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Login thành công\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.environment.set(\"token\", json.accessToken);",
+              "pm.environment.set(\"role\", json.role);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth - Login (letan)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"letan\",\n  \"password\": \"123456\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Login thành công\", function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "pm.environment.set(\"token\", json.accessToken);",
+              "pm.environment.set(\"role\", json.role);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rooms - Get (no token, expect 401)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/rooms",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "rooms"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Rooms - Get (Bearer token)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/rooms",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "rooms"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Customers - Create",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerType\": \"INDIVIDUAL\",\n  \"fullName\": \"Khach Postman\",\n  \"phone\": \"0901234567\",\n  \"email\": \"postman@test.com\",\n  \"notes\": \"Tao tu Postman collection\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/customers",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "customers"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Bookings - Create",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": 1,\n  \"customerId\": null,\n  \"checkInDate\": \"2026-04-05\",\n  \"checkOutDate\": \"2026-04-06\",\n  \"adults\": 1,\n  \"children\": 0,\n  \"specialRequest\": \"Phong yen tinh\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/bookings",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "bookings"
+          ]
+        }
+      }
+    }
+  ]
+}
