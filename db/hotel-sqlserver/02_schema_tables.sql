@@ -87,7 +87,15 @@ CREATE TABLE dbo.Hotel (
   Phone       NVARCHAR(50) NULL,
   Email       NVARCHAR(200) NULL,
   IsActive    BIT NOT NULL CONSTRAINT DF_Hotel_IsActive DEFAULT(1),
-  CreatedAt   DATETIME2(0) NOT NULL CONSTRAINT DF_Hotel_CreatedAt DEFAULT (SYSUTCDATETIME())
+  CreatedAt   DATETIME2(0) NOT NULL CONSTRAINT DF_Hotel_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt   DATETIME2(0) NOT NULL CONSTRAINT DF_Hotel_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy   INT NULL,
+  UpdatedBy   INT NULL,
+  DeletedAt   DATETIME2(0) NULL,
+  DeletedBy   INT NULL,
+  CONSTRAINT FK_Hotel_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Hotel_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Hotel_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId)
 );
 GO
 
@@ -99,7 +107,16 @@ CREATE TABLE dbo.RoomType (
   BaseRate       DECIMAL(18,2) NOT NULL CONSTRAINT CK_RoomType_BaseRate CHECK (BaseRate >= 0),
   Description    NVARCHAR(500) NULL,
   IsActive       BIT NOT NULL CONSTRAINT DF_RoomType_IsActive DEFAULT(1),
-  CONSTRAINT FK_RoomType_Hotel FOREIGN KEY (HotelId) REFERENCES dbo.Hotel(HotelId)
+  CreatedAt      DATETIME2(0) NOT NULL CONSTRAINT DF_RoomType_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt      DATETIME2(0) NOT NULL CONSTRAINT DF_RoomType_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy      INT NULL,
+  UpdatedBy      INT NULL,
+  DeletedAt      DATETIME2(0) NULL,
+  DeletedBy      INT NULL,
+  CONSTRAINT FK_RoomType_Hotel FOREIGN KEY (HotelId) REFERENCES dbo.Hotel(HotelId),
+  CONSTRAINT FK_RoomType_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_RoomType_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_RoomType_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId)
 );
 GO
 
@@ -114,8 +131,15 @@ CREATE TABLE dbo.Room (
   Notes         NVARCHAR(500) NULL,
   CreatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_Room_CreatedAt DEFAULT (SYSUTCDATETIME()),
   UpdatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_Room_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy     INT NULL,
+  UpdatedBy     INT NULL,
+  DeletedAt     DATETIME2(0) NULL,
+  DeletedBy     INT NULL,
   CONSTRAINT FK_Room_Hotel FOREIGN KEY (HotelId) REFERENCES dbo.Hotel(HotelId),
   CONSTRAINT FK_Room_RoomType FOREIGN KEY (RoomTypeId) REFERENCES dbo.RoomType(RoomTypeId),
+  CONSTRAINT FK_Room_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Room_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Room_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_Room_Status CHECK (StatusCode IN (
     N'VACANT', N'RESERVED', N'OCCUPIED', N'DIRTY', N'CLEANING', N'MAINTENANCE', N'OUT_OF_SERVICE'
   ))
@@ -144,7 +168,15 @@ CREATE TABLE dbo.Customer (
   Phone          NVARCHAR(50) NULL,
   Notes          NVARCHAR(500) NULL,
   CreatedAt      DATETIME2(0) NOT NULL CONSTRAINT DF_Customer_CreatedAt DEFAULT (SYSUTCDATETIME()),
-  CONSTRAINT CK_Customer_Type CHECK (CustomerType IN (N'INDIVIDUAL', N'COMPANY', N'AGENCY'))
+  UpdatedAt      DATETIME2(0) NOT NULL CONSTRAINT DF_Customer_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy      INT NULL,
+  UpdatedBy      INT NULL,
+  DeletedAt      DATETIME2(0) NULL,
+  DeletedBy      INT NULL,
+  CONSTRAINT CK_Customer_Type CHECK (CustomerType IN (N'INDIVIDUAL', N'COMPANY', N'AGENCY')),
+  CONSTRAINT FK_Customer_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Customer_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Customer_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId)
 );
 GO
 
@@ -157,7 +189,15 @@ CREATE TABLE dbo.Guest (
   IdNumber         NVARCHAR(50) NULL,
   DateOfBirth      DATE NULL,
   Nationality      NVARCHAR(100) NULL,
-  CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Guest_CreatedAt DEFAULT (SYSUTCDATETIME())
+  CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Guest_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Guest_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy        INT NULL,
+  UpdatedBy        INT NULL,
+  DeletedAt        DATETIME2(0) NULL,
+  DeletedBy        INT NULL,
+  CONSTRAINT FK_Guest_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Guest_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Guest_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId)
 );
 GO
 
@@ -182,9 +222,16 @@ CREATE TABLE dbo.Reservation (
   SpecialRequest   NVARCHAR(500) NULL,
   CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Reservation_CreatedAt DEFAULT (SYSUTCDATETIME()),
   UpdatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Reservation_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy        INT NULL,
+  UpdatedBy        INT NULL,
+  DeletedAt        DATETIME2(0) NULL,
+  DeletedBy        INT NULL,
   CONSTRAINT FK_Reservation_Hotel FOREIGN KEY (HotelId) REFERENCES dbo.Hotel(HotelId),
   CONSTRAINT FK_Reservation_Room FOREIGN KEY (RoomId) REFERENCES dbo.Room(RoomId),
   CONSTRAINT FK_Reservation_Customer FOREIGN KEY (CustomerId) REFERENCES dbo.Customer(CustomerId),
+  CONSTRAINT FK_Reservation_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Reservation_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Reservation_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_Reservation_Status CHECK (StatusCode IN (
     N'CONFIRMED', N'CANCELLED', N'NO_SHOW', N'CHECKED_IN', N'CHECKED_OUT'
   )),
@@ -211,9 +258,17 @@ CREATE TABLE dbo.Stay (
   DepositAmount     DECIMAL(18,2) NOT NULL CONSTRAINT DF_Stay_Deposit DEFAULT(0),
   Notes             NVARCHAR(500) NULL,
   CreatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_Stay_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_Stay_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy         INT NULL,
+  UpdatedBy         INT NULL,
+  DeletedAt         DATETIME2(0) NULL,
+  DeletedBy         INT NULL,
   CONSTRAINT FK_Stay_Hotel FOREIGN KEY (HotelId) REFERENCES dbo.Hotel(HotelId),
   CONSTRAINT FK_Stay_Room FOREIGN KEY (RoomId) REFERENCES dbo.Room(RoomId),
   CONSTRAINT FK_Stay_Reservation FOREIGN KEY (ReservationId) REFERENCES dbo.Reservation(ReservationId),
+  CONSTRAINT FK_Stay_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Stay_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Stay_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_Stay_Status CHECK (StatusCode IN (N'IN_HOUSE', N'CHECKED_OUT'))
 );
 GO
@@ -244,8 +299,16 @@ CREATE TABLE dbo.ServiceOrder (
   UnitPrice        DECIMAL(18,2) NOT NULL CONSTRAINT CK_ServiceOrder_UnitPrice CHECK (UnitPrice >= 0),
   StatusCode       NVARCHAR(30) NOT NULL,  -- ACTIVE/CANCELLED
   CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_ServiceOrder_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_ServiceOrder_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy        INT NULL,
+  UpdatedBy        INT NULL,
+  DeletedAt        DATETIME2(0) NULL,
+  DeletedBy        INT NULL,
   CancelReason     NVARCHAR(300) NULL,
   CONSTRAINT FK_ServiceOrder_Stay FOREIGN KEY (StayId) REFERENCES dbo.Stay(StayId),
+  CONSTRAINT FK_ServiceOrder_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_ServiceOrder_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_ServiceOrder_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_ServiceOrder_Status CHECK (StatusCode IN (N'ACTIVE', N'CANCELLED'))
 );
 GO
@@ -268,8 +331,16 @@ CREATE TABLE dbo.Payment (
   ReferenceNo      NVARCHAR(100) NULL,
   Note             NVARCHAR(300) NULL,
   CreatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Payment_CreatedAt DEFAULT (SYSUTCDATETIME()),
+  UpdatedAt        DATETIME2(0) NOT NULL CONSTRAINT DF_Payment_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy        INT NULL,
+  UpdatedBy        INT NULL,
+  DeletedAt        DATETIME2(0) NULL,
+  DeletedBy        INT NULL,
   CONSTRAINT FK_Payment_Stay FOREIGN KEY (StayId) REFERENCES dbo.Stay(StayId),
   CONSTRAINT FK_Payment_Reservation FOREIGN KEY (ReservationId) REFERENCES dbo.Reservation(ReservationId),
+  CONSTRAINT FK_Payment_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Payment_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_Payment_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_Payment_Type CHECK (PaymentType IN (N'CHARGE', N'DEPOSIT', N'REFUND')),
   CONSTRAINT CK_Payment_Method CHECK (MethodCode IN (N'CASH', N'BANK_TRANSFER', N'CARD', N'OTHER')),
   CONSTRAINT CK_Payment_Status CHECK (StatusCode IN (N'PAID', N'VOID')),
@@ -292,9 +363,16 @@ CREATE TABLE dbo.HousekeepingTask (
   StatusCode    NVARCHAR(20) NOT NULL, -- OPEN/IN_PROGRESS/DONE/CANCELLED
   CreatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_HK_CreatedAt DEFAULT (SYSUTCDATETIME()),
   UpdatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_HK_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy     INT NULL,
+  UpdatedBy     INT NULL,
+  DeletedAt     DATETIME2(0) NULL,
+  DeletedBy     INT NULL,
   Note          NVARCHAR(300) NULL,
   CONSTRAINT FK_HK_Room FOREIGN KEY (RoomId) REFERENCES dbo.Room(RoomId),
   CONSTRAINT FK_HK_AssignedTo FOREIGN KEY (AssignedTo) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_HK_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_HK_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_HK_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_HK_Status CHECK (StatusCode IN (N'OPEN', N'IN_PROGRESS', N'DONE', N'CANCELLED'))
 );
 GO
@@ -308,9 +386,16 @@ CREATE TABLE dbo.MaintenanceTicket (
   StatusCode    NVARCHAR(20) NOT NULL, -- OPEN/IN_PROGRESS/DONE/CANCELLED
   CreatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_MT_CreatedAt DEFAULT (SYSUTCDATETIME()),
   UpdatedAt     DATETIME2(0) NOT NULL CONSTRAINT DF_MT_UpdatedAt DEFAULT (SYSUTCDATETIME()),
+  CreatedBy     INT NULL,
+  UpdatedBy     INT NULL,
+  DeletedAt     DATETIME2(0) NULL,
+  DeletedBy     INT NULL,
   CancelReason  NVARCHAR(300) NULL,
   CONSTRAINT FK_MT_Room FOREIGN KEY (RoomId) REFERENCES dbo.Room(RoomId),
   CONSTRAINT FK_MT_AssignedTo FOREIGN KEY (AssignedTo) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_MT_CreatedBy FOREIGN KEY (CreatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_MT_UpdatedBy FOREIGN KEY (UpdatedBy) REFERENCES dbo.AppUser(UserId),
+  CONSTRAINT FK_MT_DeletedBy FOREIGN KEY (DeletedBy) REFERENCES dbo.AppUser(UserId),
   CONSTRAINT CK_MT_Status CHECK (StatusCode IN (N'OPEN', N'IN_PROGRESS', N'DONE', N'CANCELLED'))
 );
 GO

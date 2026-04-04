@@ -9,4 +9,5 @@ public class Room
     public string StatusCode { get; set; } = "VACANT";
     public string? Floor { get; set; }
     public bool IsActive { get; set; } = true;
+    public RoomType? RoomType { get; set; }
 }

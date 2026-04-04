@@ -10,4 +10,7 @@ public class Customer
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Notes { get; set; }
+    public int LoyaltyPoints { get; set; }
+    public string LoyaltyTier { get; set; } = "BRONZE";
+    public DateTime? DeletedAt { get; set; }
 }

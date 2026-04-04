@@ -8,6 +8,8 @@ Chạy theo thứ tự:
 4. `04_views.sql`
 5. `05_stored_procedures.sql`
 6. `06_seed_data.sql`
+7. `07_invoice_hotel_service.sql` (bảng `Invoice`, `HotelService` — cần cho API hóa đơn & danh mục dịch vụ)
+8. `08_customer_loyalty.sql` (cột `LoyaltyPoints`, `LoyaltyTier` trên `Customer` — tích điểm / hạng)
 
 Gợi ý:
 - Dùng SSMS hoặc Azure Data Studio.

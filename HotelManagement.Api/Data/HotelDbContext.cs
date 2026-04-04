@@ -13,9 +13,15 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
     public DbSet<Room> Rooms => Set<Room>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<Customer> Customers => Set<Customer>();
-    public DbSet<HotelService> HotelServices => Set<HotelService>();
-    public DbSet<BookingServiceUsage> BookingServiceUsages => Set<BookingServiceUsage>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<Stay> Stays => Set<Stay>();
+    public DbSet<ServiceOrder> ServiceOrders => Set<ServiceOrder>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<Guest> Guests => Set<Guest>();
+    public DbSet<HousekeepingTask> HousekeepingTasks => Set<HousekeepingTask>();
+    public DbSet<MaintenanceTicket> MaintenanceTickets => Set<MaintenanceTicket>();
+    public DbSet<HotelServiceItem> HotelServices => Set<HotelServiceItem>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +32,10 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
         modelBuilder.Entity<Hotel>().ToTable("Hotel", "dbo").HasKey(x => x.HotelId);
         modelBuilder.Entity<RoomType>().ToTable("RoomType", "dbo").HasKey(x => x.RoomTypeId);
         modelBuilder.Entity<Room>().ToTable("Room", "dbo").HasKey(x => x.RoomId);
+        modelBuilder.Entity<Room>()
+            .HasOne(r => r.RoomType)
+            .WithMany()
+            .HasForeignKey(r => r.RoomTypeId);
         modelBuilder.Entity<Customer>().ToTable("Customer", "dbo").HasKey(x => x.CustomerId);
         modelBuilder.Entity<Booking>().ToTable("Reservation", "dbo").HasKey(x => x.ReservationId);
 
@@ -35,19 +45,33 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
             .HasForeignKey(b => b.CustomerId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        modelBuilder.Entity<BookingServiceUsage>()
+        modelBuilder.Entity<Stay>().ToTable("Stay", "dbo").HasKey(x => x.StayId);
+        modelBuilder.Entity<ServiceOrder>().ToTable("ServiceOrder", "dbo").HasKey(x => x.ServiceOrderId);
+
+        modelBuilder.Entity<Stay>()
             .HasOne(s => s.Booking)
-            .WithMany(b => b.ServiceUsages)
-            .HasForeignKey(s => s.BookingId);
+            .WithOne(b => b.Stay)
+            .HasForeignKey<Stay>(s => s.ReservationId)
+            .OnDelete(DeleteBehavior.SetNull);
 
-        modelBuilder.Entity<BookingServiceUsage>()
-            .HasOne(s => s.HotelService)
-            .WithMany()
-            .HasForeignKey(s => s.HotelServiceId);
+        modelBuilder.Entity<ServiceOrder>()
+            .HasOne(o => o.Stay)
+            .WithMany(s => s.ServiceOrders)
+            .HasForeignKey(o => o.StayId)
+            .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<Invoice>().ToTable("Invoice", "dbo").HasKey(x => x.Id);
         modelBuilder.Entity<Invoice>()
             .HasOne(i => i.Booking)
             .WithMany()
             .HasForeignKey(i => i.BookingId);
+
+        modelBuilder.Entity<Payment>().ToTable("Payment", "dbo").HasKey(x => x.PaymentId);
+        modelBuilder.Entity<Guest>().ToTable("Guest", "dbo").HasKey(x => x.GuestId);
+        modelBuilder.Entity<HousekeepingTask>().ToTable("HousekeepingTask", "dbo").HasKey(x => x.TaskId);
+        modelBuilder.Entity<MaintenanceTicket>().ToTable("MaintenanceTicket", "dbo").HasKey(x => x.TicketId);
+        modelBuilder.Entity<HotelServiceItem>().ToTable("HotelService", "dbo").HasKey(x => x.HotelServiceId);
+
+        modelBuilder.Entity<AuditLog>().ToTable("AuditLog", "dbo").HasKey(x => x.AuditId);
     }
 }

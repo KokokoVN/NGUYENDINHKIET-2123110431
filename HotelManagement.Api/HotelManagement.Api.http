@@ -51,3 +51,138 @@ Authorization: Bearer {{token}}
 }
 
 ###
+
+### Bookings - Danh sach (loc: hotelId, roomId, customerId, statusCode)
+GET {{HotelManagement.Api_HostAddress}}/api/bookings?statusCode=CONFIRMED
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+### Bookings - Tao kem khach moi (ADMIN/RECEPTION) — doi roomId, ngay cho hop le
+POST {{HotelManagement.Api_HostAddress}}/api/bookings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "roomId": 1,
+  "newCustomer": {
+    "customerType": "INDIVIDUAL",
+    "fullName": "Nguyen Van A",
+    "phone": "0912345678",
+    "email": "a@email.com"
+  },
+  "checkInDate": "2026-05-01",
+  "checkOutDate": "2026-05-03",
+  "adults": 2,
+  "children": 0,
+  "ratePerNight": null,
+  "specialRequest": "Phong tang cao"
+}
+
+###
+
+### Bookings - Tao voi customerId co san
+POST {{HotelManagement.Api_HostAddress}}/api/bookings
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "roomId": 1,
+  "customerId": 1,
+  "checkInDate": "2026-06-01",
+  "checkOutDate": "2026-06-04",
+  "adults": 1,
+  "children": 0
+}
+
+###
+
+### Bookings - Check-in (tao Stay IN_HOUSE, tra ve stayId)
+PUT {{HotelManagement.Api_HostAddress}}/api/bookings/1/check-in
+Authorization: Bearer {{token}}
+
+###
+
+### Bookings - Check-out (dong Stay, phong DIRTY)
+PUT {{HotelManagement.Api_HostAddress}}/api/bookings/1/check-out
+Authorization: Bearer {{token}}
+
+###
+
+### Stays - Theo reservationId
+GET {{HotelManagement.Api_HostAddress}}/api/stays?reservationId=1
+Authorization: Bearer {{token}}
+
+###
+
+### ServiceOrders - Them dich vu (stayId HOAC reservationId)
+POST {{HotelManagement.Api_HostAddress}}/api/serviceorders
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reservationId": 1,
+  "serviceCode": "BREAKFAST",
+  "description": "An sang",
+  "quantity": 2,
+  "unitPrice": 75000
+}
+
+###
+
+### ServiceOrders - Huy
+PUT {{HotelManagement.Api_HostAddress}}/api/serviceorders/1/cancel
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "reason": "Khach khong dung"
+}
+
+###
+
+### Hotels - Danh sach (loc: search, phone, email; includeInactive=true xem ca da ngung)
+GET {{HotelManagement.Api_HostAddress}}/api/hotels?search=Demo&includeInactive=false
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+### Hotels - Tao (ADMIN/RECEPTION)
+POST {{HotelManagement.Api_HostAddress}}/api/hotels
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "hotelName": "Khách sạn Mới",
+  "address": "123 Đường Test, TP.HCM",
+  "phone": "0900111222",
+  "email": "new@hotel.local",
+  "isActive": true
+}
+
+###
+
+### RoomTypes - Danh sach (loc: hotelId, search, minCapacity, maxBaseRate, includeInactive)
+GET {{HotelManagement.Api_HostAddress}}/api/roomtypes?hotelId=1&search=Standard
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+### RoomTypes - Tao (ADMIN/RECEPTION)
+POST {{HotelManagement.Api_HostAddress}}/api/roomtypes
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "hotelId": 1,
+  "roomTypeName": "Suite",
+  "capacity": 4,
+  "baseRate": 1500000,
+  "description": "Phòng suite",
+  "isActive": true
+}
+
+###

@@ -260,17 +260,19 @@ Base URL:
 ### 6.1 Hợp lệ
 ```json
 {
-  "bookingId": 1,
-  "hotelServiceId": 1,
-  "quantity": 2
+  "stayId": 1,
+  "serviceCode": "MINIBAR",
+  "description": "Dịch vụ test",
+  "quantity": 2,
+  "unitPrice": 10000
 }
 ```
 
 ### 6.2 Booking không tồn tại
 ```json
 {
-  "bookingId": 99999,
-  "hotelServiceId": 1,
+  "stayId": 99999,
+  "serviceCode": "MINIBAR",
   "quantity": 1
 }
 ```
@@ -278,18 +280,21 @@ Base URL:
 ### 6.3 Service không tồn tại
 ```json
 {
-  "bookingId": 1,
-  "hotelServiceId": 99999,
-  "quantity": 1
+  "stayId": 1,
+  "serviceCode": "",
+  "description": "Test service code rỗng",
+  "quantity": 1,
+  "unitPrice": 10000
 }
 ```
 
 ### 6.4 Quantity = 0 (lỗi validate)
 ```json
 {
-  "bookingId": 1,
-  "hotelServiceId": 1,
-  "quantity": 0
+  "stayId": 1,
+  "serviceCode": "MINIBAR",
+  "quantity": 0,
+  "unitPrice": 10000
 }
 ```
 
@@ -300,27 +305,30 @@ Base URL:
 ### 7.1 Hợp lệ (booking đã CHECKED_OUT)
 ```json
 {
-  "bookingId": 1,
-  "paymentMethod": "CASH",
-  "note": "Thanh toan test"
+  "reservationId": 1,
+  "methodCode": "CASH",
+  "amountOverride": null,
+  "note": "Thanh toán test"
 }
 ```
 
 ### 7.2 Booking chưa check-out
 ```json
 {
-  "bookingId": 2,
-  "paymentMethod": "BANK_TRANSFER",
-  "note": "Booking chua checkout"
+  "reservationId": 2,
+  "methodCode": "BANK_TRANSFER",
+  "amountOverride": null,
+  "note": "Reservation chưa check-out"
 }
 ```
 
 ### 7.3 Booking không tồn tại
 ```json
 {
-  "bookingId": 99999,
-  "paymentMethod": "CASH",
-  "note": "Booking khong ton tai"
+  "reservationId": 99999,
+  "methodCode": "CASH",
+  "amountOverride": null,
+  "note": "Reservation không tồn tại"
 }
 ```
 

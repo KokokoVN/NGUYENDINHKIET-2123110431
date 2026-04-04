@@ -1,6 +1,7 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
+using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class RoomsController(HotelDbContext dbContext) : ControllerBase
+public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(
@@ -94,6 +95,22 @@ public class RoomsController(HotelDbContext dbContext) : ControllerBase
 
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
+
+        await auditLog.WriteAsync(
+            "ROOM_CREATE",
+            "Room",
+            room.RoomId.ToString(),
+            after: new
+            {
+                room.RoomId,
+                room.HotelId,
+                room.RoomTypeId,
+                room.RoomNumber,
+                room.Floor,
+                room.StatusCode,
+                room.IsActive
+            });
+
         return Ok(new { message = "Thêm phòng thành công.", data = room });
     }
 
@@ -107,20 +124,27 @@ public class RoomsController(HotelDbContext dbContext) : ControllerBase
             return NotFound(new { message = "Không tìm thấy phòng để cập nhật." });
         }
 
+        var before = new
+        {
+            room.RoomId,
+            room.HotelId,
+            room.RoomTypeId,
+            room.RoomNumber,
+            room.Floor,
+            room.StatusCode,
+            room.IsActive
+        };
+
+        var roomNumber = request.RoomNumber.Trim();
         var duplicate = await dbContext.Rooms.AnyAsync(r =>
             r.RoomId != id &&
             r.HotelId == room.HotelId &&
-            r.RoomNumber == request.RoomNumber &&
+            r.RoomNumber == roomNumber &&
             r.IsActive);
         if (duplicate)
         {
             return BadRequest(new { message = "Số phòng đã tồn tại, vui lòng chọn số khác." });
         }
-
-        room.RoomTypeId = request.RoomTypeId;
-        room.RoomNumber = request.RoomNumber.Trim();
-        room.Floor = request.Floor?.Trim();
-        room.StatusCode = request.StatusCode.Trim().ToUpperInvariant();
 
         var roomTypeExists = await dbContext.RoomTypes.AnyAsync(rt =>
             rt.RoomTypeId == request.RoomTypeId &&
@@ -131,7 +155,29 @@ public class RoomsController(HotelDbContext dbContext) : ControllerBase
             return BadRequest(new { message = "Loại phòng không hợp lệ cho khách sạn này." });
         }
 
+        room.RoomTypeId = request.RoomTypeId;
+        room.RoomNumber = roomNumber;
+        room.Floor = request.Floor?.Trim();
+        room.StatusCode = request.StatusCode.Trim().ToUpperInvariant();
+
         await dbContext.SaveChangesAsync();
+
+        await auditLog.WriteAsync(
+            "ROOM_UPDATE",
+            "Room",
+            room.RoomId.ToString(),
+            before: before,
+            after: new
+            {
+                room.RoomId,
+                room.HotelId,
+                room.RoomTypeId,
+                room.RoomNumber,
+                room.Floor,
+                room.StatusCode,
+                room.IsActive
+            });
+
         return Ok(new { message = "Cập nhật phòng thành công.", data = room });
     }
 
@@ -145,9 +191,38 @@ public class RoomsController(HotelDbContext dbContext) : ControllerBase
             return NotFound(new { message = "Không tìm thấy phòng để ngưng hoạt động." });
         }
 
+        var before = new
+        {
+            room.RoomId,
+            room.HotelId,
+            room.RoomTypeId,
+            room.RoomNumber,
+            room.Floor,
+            room.StatusCode,
+            room.IsActive
+        };
+
         room.IsActive = false;
         room.StatusCode = "OUT_OF_SERVICE";
         await dbContext.SaveChangesAsync();
+
+        await auditLog.WriteAsync(
+            "ROOM_SOFT_DELETE",
+            "Room",
+            room.RoomId.ToString(),
+            reason: "Ngưng hoạt động phòng (xóa mềm)",
+            before: before,
+            after: new
+            {
+                room.RoomId,
+                room.HotelId,
+                room.RoomTypeId,
+                room.RoomNumber,
+                room.Floor,
+                room.StatusCode,
+                room.IsActive
+            });
+
         return Ok(new { message = "Ngưng hoạt động phòng thành công." });
     }
 }

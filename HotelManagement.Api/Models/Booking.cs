@@ -15,5 +15,5 @@ public class Booking
     public string? SpecialRequest { get; set; }
     public Room? Room { get; set; }
     public Customer? Customer { get; set; }
-    public List<BookingServiceUsage> ServiceUsages { get; set; } = [];
+    public Stay? Stay { get; set; }
 }

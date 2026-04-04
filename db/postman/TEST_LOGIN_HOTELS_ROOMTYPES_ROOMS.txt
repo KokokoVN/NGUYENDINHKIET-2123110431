@@ -1,0 +1,313 @@
+====================================================================
+TEST POSTMAN — Login + Hotels + RoomTypes + Rooms (JSON mẫu)
+====================================================================
+
+Base URL:
+  http://localhost:5066
+
+Header chung (sau khi login, trừ bước 1):
+  Authorization: Bearer <accessToken>
+  Content-Type: application/json
+
+--------------------------------------------------------------------
+1) LOGIN (không cần token)
+--------------------------------------------------------------------
+POST http://localhost:5066/api/auth/login
+
+JSON — admin:
+{
+  "username": "admin",
+  "password": "123456"
+}
+
+JSON — lễ tân:
+{
+  "username": "letan",
+  "password": "123456"
+}
+
+Sau khi gọi: copy giá trị "accessToken" trong response → dán vào Bearer.
+
+Lỗi www-authenticate: Bearer error="invalid_token":
+  - Đăng nhập lại lấy token mới (token hết hạn hoặc đổi Jwt:Key trong appsettings).
+  - Header chỉ một lần "Bearer": Postman chọn Type = Bearer Token → dán ĐÚNG chuỗi token,
+    KHÔNG dán thêm chữ Bearer ở đầu.
+  - Swagger: Authorize → dán accessToken (thường không cần gõ Bearer).
+
+--------------------------------------------------------------------
+2) (Tuỳ chọn) XEM ID khách sạn / loại phòng hiện có
+--------------------------------------------------------------------
+GET http://localhost:5066/api/hotels
+
+GET http://localhost:5066/api/roomtypes?hotelId=1
+
+GET http://localhost:5066/api/rooms
+GET http://localhost:5066/api/rooms?roomTypeId=1&statusCode=VACANT
+
+--------------------------------------------------------------------
+3) TẠO KHÁCH SẠN (POST) — role ADMIN hoặc RECEPTION
+--------------------------------------------------------------------
+POST http://localhost:5066/api/hotels
+
+{
+  "hotelName": "Khách sạn Test Postman",
+  "address": "10 Đường ABC, Quận 1, TP.HCM",
+  "phone": "0900123456",
+  "email": "testpostman@hotel.local",
+  "isActive": true
+}
+
+→ Lưu hotelId trả về (ví dụ 2) để dùng bước 4.
+
+Nếu dùng dữ liệu seed sẵn, thường hotelId = 1.
+
+--------------------------------------------------------------------
+4) TẠO LOẠI PHÒNG (POST) — hotelId phải tồn tại & đang hoạt động
+--------------------------------------------------------------------
+POST http://localhost:5066/api/roomtypes
+
+{
+  "hotelId": 1,
+  "roomTypeName": "Suite Postman",
+  "capacity": 4,
+  "baseRate": 1200000,
+  "description": "Test tạo loại phòng",
+  "isActive": true
+}
+
+→ Đổi "hotelId": 1 thành id bạn vừa tạo ở bước 3 nếu cần.
+→ Lưu roomTypeId trong response (field roomTypeId hoặc trong data).
+
+--------------------------------------------------------------------
+5) TẠO PHÒNG (POST)
+--------------------------------------------------------------------
+POST http://localhost:5066/api/rooms
+
+{
+  "hotelId": 1,
+  "roomTypeId": 1,
+  "roomNumber": "305",
+  "floor": "3",
+  "statusCode": "VACANT"
+}
+
+→ hotelId / roomTypeId phải khớp: RoomType phải thuộc đúng Hotel đó.
+→ Số phòng không được trùng trong cùng một khách sạn (phòng đang active).
+→ statusCode thường: VACANT | RESERVED | OCCUPIED | DIRTY | ...
+
+--------------------------------------------------------------------
+6) SỬA — PUT (ADMIN/RECEPTION) — thay {id} bằng HotelId / RoomTypeId / RoomId
+--------------------------------------------------------------------
+PUT http://localhost:5066/api/hotels/{id}
+
+{
+  "hotelName": "Khách sạn Test Postman (đã sửa)",
+  "address": "11 Đường ABC, Quận 1, TP.HCM",
+  "phone": "0900999888",
+  "email": "updated@hotel.local",
+  "isActive": true
+}
+
+---
+
+PUT http://localhost:5066/api/roomtypes/{id}
+
+{
+  "roomTypeName": "Suite Postman Pro",
+  "capacity": 5,
+  "baseRate": 1500000,
+  "description": "Đã cập nhật",
+  "isActive": true
+}
+
+---
+
+PUT http://localhost:5066/api/rooms/{id}
+
+{
+  "roomTypeId": 1,
+  "roomNumber": "305A",
+  "floor": "3",
+  "statusCode": "VACANT"
+}
+
+--------------------------------------------------------------------
+7) XÓA MỀM — DELETE (không body) — ADMIN/RECEPTION
+--------------------------------------------------------------------
+DELETE http://localhost:5066/api/rooms/{id}
+  → IsActive = false, StatusCode = OUT_OF_SERVICE
+
+DELETE http://localhost:5066/api/roomtypes/{id}
+  → IsActive = false
+  → Chỉ được khi KHÔNG còn phòng active nào đang dùng loại phòng này.
+
+DELETE http://localhost:5066/api/hotels/{id}
+  → IsActive = false
+  → Chỉ được khi KHÔNG còn phòng/loại phòng active thuộc khách sạn đó
+  → Nên xóa phòng trước, xóa roomtype trước, rồi mới xóa hotel.
+
+--------------------------------------------------------------------
+8) KIỂM TRA NHẬT KÝ (dbo.AuditLog) sau POST/PUT/DELETE
+--------------------------------------------------------------------
+Chạy trong SSMS — các Action ghi khi thao tác Hotels / RoomTypes / Rooms:
+
+  HOTEL_CREATE | HOTEL_UPDATE | HOTEL_SOFT_DELETE
+  ROOM_TYPE_CREATE | ROOM_TYPE_UPDATE | ROOM_TYPE_SOFT_DELETE
+  ROOM_CREATE | ROOM_UPDATE | ROOM_SOFT_DELETE
+
+SQL:
+SELECT TOP 50 AuditId, CreatedAt, ActorUserId, Action, EntityName, EntityId, Reason,
+       BeforeJson, AfterJson
+FROM dbo.AuditLog
+WHERE Action LIKE 'HOTEL_%' OR Action LIKE 'ROOM_%'
+ORDER BY AuditId DESC;
+
+====================================================================
+9) KHÁCH HÀNG — Customers (ADMIN/RECEPTION cho POST/PUT/DELETE)
+====================================================================
+GET http://localhost:5066/api/customers
+GET http://localhost:5066/api/customers?search=Nguyễn
+
+POST http://localhost:5066/api/customers
+
+{
+  "customerType": "INDIVIDUAL",
+  "fullName": "Trần Thị B",
+  "phone": "0900111222",
+  "email": "b@email.com",
+  "notes": "Khách quen"
+}
+
+Khách COMPANY / AGENCY — bắt buộc companyName:
+{
+  "customerType": "COMPANY",
+  "companyName": "Công ty ABC",
+  "taxCode": "0123456789",
+  "phone": "0283999888",
+  "email": "contact@abc.com"
+}
+
+PUT http://localhost:5066/api/customers/{id}
+(sửa các field tương tự Create)
+
+DELETE http://localhost:5066/api/customers/{id}
+  → xóa mềm (DeletedAt)
+
+--------------------------------------------------------------------
+10) ĐẶT PHÒNG — Bookings (POST cần ADMIN hoặc RECEPTION)
+--------------------------------------------------------------------
+GET http://localhost:5066/api/bookings
+GET http://localhost:5066/api/bookings?hotelId=1&statusCode=CONFIRMED
+GET http://localhost:5066/api/bookings/{id}
+
+POST http://localhost:5066/api/bookings
+— Cách 1: khách đã có (lấy customerId từ GET /api/customers)
+
+{
+  "roomId": 1,
+  "customerId": 1,
+  "checkInDate": "2026-05-10",
+  "checkOutDate": "2026-05-12",
+  "adults": 2,
+  "children": 0,
+  "ratePerNight": null,
+  "specialRequest": null
+}
+
+— Cách 2: tạo khách mới + đặt phòng trong một lần (KHÔNG gửi customerId)
+
+{
+  "roomId": 1,
+  "newCustomer": {
+    "customerType": "INDIVIDUAL",
+    "fullName": "Lê Văn C",
+    "phone": "0933444555",
+    "email": "c@email.com"
+  },
+  "checkInDate": "2026-05-10",
+  "checkOutDate": "2026-05-12",
+  "adults": 1,
+  "children": 0
+}
+
+→ ratePerNight: null = lấy theo baseRate của loại phòng; hoặc gửi số cụ thể.
+→ Chỉ chặn trùng lịch với đơn CONFIRMED hoặc CHECKED_IN (đã hủy / đã trả phòng không chặn).
+→ Phòng OUT_OF_SERVICE / MAINTENANCE không cho đặt.
+→ adults + children không vượt capacity của loại phòng.
+
+PUT http://localhost:5066/api/bookings/{id}/check-in
+  → Tạo bản ghi dbo.Stay (IN_HOUSE), đơn → CHECKED_IN, phòng → OCCUPIED.
+  → Response có thêm stayId (dùng để POST dịch vụ).
+
+PUT http://localhost:5066/api/bookings/{id}/check-out
+  → Đóng Stay (CHECKED_OUT, CheckOutAt), đơn → CHECKED_OUT, phòng → DIRTY.
+  → Cần đã có Stay IN_HOUSE (đơn check-in bằng bản API này). Đơn CHECKED_IN cũ
+    trước khi có Stay phải bổ sung Stay trong DB hoặc check-in lại trên đơn mới.
+
+PUT http://localhost:5066/api/bookings/{id}/cancel    (chỉ khi CONFIRMED)
+
+--------------------------------------------------------------------
+11) LƯU TRÚ (Stay) — xem sau check-in
+--------------------------------------------------------------------
+GET http://localhost:5066/api/stays
+GET http://localhost:5066/api/stays?reservationId=1&statusCode=IN_HOUSE
+GET http://localhost:5066/api/stays/{stayId}
+
+--------------------------------------------------------------------
+12) DỊCH VỤ PHÒNG (ServiceOrder) — ADMIN/RECEPTION
+--------------------------------------------------------------------
+Chỉ thêm được khi đã check-in (còn Stay IN_HOUSE).
+
+GET http://localhost:5066/api/serviceorders?stayId=1
+GET http://localhost:5066/api/serviceorders?reservationId=1
+
+POST http://localhost:5066/api/serviceorders
+— Gửi đúng MỘT trong hai: stayId HOẶC reservationId
+
+{
+  "stayId": 1,
+  "serviceCode": "BREAKFAST",
+  "description": "Ăn sáng 2 suất",
+  "quantity": 2,
+  "unitPrice": 80000
+}
+
+serviceCode: MINIBAR | LAUNDRY | BREAKFAST | EXTRA_BED | OTHER
+
+PUT http://localhost:5066/api/serviceorders/{id}/cancel
+
+{
+  "reason": "Khách hủy"
+}
+
+--------------------------------------------------------------------
+13) HÓA ĐƠN — cộng tiền dịch vụ (ACTIVE) theo Stay của đặt phòng
+--------------------------------------------------------------------
+POST http://localhost:5066/api/invoices  (sau CHECKED_OUT, có Bearer + role)
+→ serviceAmount = tổng (quantity * unitPrice) các ServiceOrder ACTIVE của mọi Stay
+  gắn reservationId đó.
+
+--------------------------------------------------------------------
+14) AuditLog — bổ sung
+--------------------------------------------------------------------
+SQL (bổ sung điều kiện WHERE nếu cần):
+
+  CUSTOMER_CREATE | CUSTOMER_UPDATE | CUSTOMER_SOFT_DELETE
+  BOOKING_CREATE
+  STAY_CHECK_IN | STAY_CHECK_OUT
+  SERVICE_ORDER_CREATE | SERVICE_ORDER_CANCEL
+
+====================================================================
+THỨ TỰ GỢI Ý
+====================================================================
+  1) POST /api/auth/login  (+ Bearer)
+  2) GET /api/hotels (lấy hotelId) HOẶC POST /api/hotels
+  3) POST /api/roomtypes
+  4) POST /api/rooms
+  5) POST /api/customers (hoặc dùng newCustomer trong POST /api/bookings)
+  6) POST /api/bookings
+  7) PUT .../check-in  →  POST /api/serviceorders (tuỳ chọn)
+  8) PUT .../check-out →  POST /api/invoices
+  9) PUT/DELETE catalog nếu cần
+
+====================================================================

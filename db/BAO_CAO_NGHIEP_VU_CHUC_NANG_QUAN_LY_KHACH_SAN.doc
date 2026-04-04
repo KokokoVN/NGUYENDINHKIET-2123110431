@@ -1,0 +1,276 @@
+BAO CAO NGHIEP VU & CHUC NANG
+QUAN LY KHACH SAN (Hotel Management)
+
+1. GIỚI THIEU HE THONG
+He thong quan ly khach san duoc xay dung theo mo hinh backend ASP.NET Core Web API va duoc luu tru tren SQL Server.
+He thong ho tro cac nghiep vu tu le tan va quan tri, gom:
+- Quan ly phong
+- Quan ly khach hang
+- Dat phong va kiem tra trung lich
+- Nhan phong (check-in) / Tra phong (check-out) / Huy dat phong
+- Ghi nhan dich vu phat sinh theo tung don / luu tru
+- Xuat hoa don
+- Audit log de theo doi cac thao tac
+
+
+2. CAC VAI TRO (ROLES) VA QUYEN HAN
+He thong su dung RBAC thong qua JWT va bang AppUser/AppRole/AppUserRole.
+
+- ADMIN: quan tri he thong, thuc hien them/sua/xoa (xoa mem) cac du lieu chinh.
+- RECEPTION: le tan, thuc hien dat phong, nhan/tra/huy, quan ly phong va tao khach hang.
+
+
+3. DAT DIEM DU LIEU (DANH SACH THU PHAT SQL) VA TRANG THAI
+
+3.1. Thuc the chinh
+- Hotel (Khach san)
+- RoomType (Loai phong)
+- Room (Phong)
+- Customer (Khach hang / dai dien)
+- Guest (Thong tin khach thuc te o co the duoc gan vao Stay)
+- Reservation (Dat phong - 1 reservation gan voi 1 phong)
+- Stay (Lu tru thuc te sau check-in)
+- StayGuest (Danh sach khach trong su lu tru)
+- ServiceOrder (Danh sach dich vu phat sinh trong stay)
+- Payment (Giao dich thanh toan)
+- HousekeepingTask (Cong viec ve sinh)
+- MaintenanceTicket (Phieu ky thuat)
+- AuditLog (Nhat ky thao tac - audit)
+- AppUser / AppRole / AppUserRole (Tai khoan & phan quyen)
+
+3.2. Trang thai phong
+Room.StatusCode:
+- VACANT
+- RESERVED
+- OCCUPIED
+- DIRTY
+- CLEANING
+- MAINTENANCE
+- OUT_OF_SERVICE
+
+3.3. Trang thai dat phong (Reservation.StatusCode)
+- CONFIRMED
+- CANCELLED
+- NO_SHOW
+- CHECKED_IN
+- CHECKED_OUT
+
+3.4. Trang thai lu tru (Stay.StatusCode)
+- IN_HOUSE
+- CHECKED_OUT
+
+3.5. Trang thai dich vu phat sinh (ServiceOrder.StatusCode)
+- ACTIVE
+- CANCELLED
+
+3.6. Trang thai thanh toan (Payment.StatusCode)
+- PAID
+- VOID
+
+3.7. Trang thai ve sinh / ky thuat
+- HousekeepingTask.StatusCode: OPEN / IN_PROGRESS / DONE / CANCELLED
+- MaintenanceTicket.StatusCode: OPEN / IN_PROGRESS / DONE / CANCELLED
+
+
+4. LUONG NGHIEP VU CHINH (END-TO-END)
+4.1. Tai khoan va dang nhap
+1) Nguoi dung dang nhap POST /api/auth/login.
+2) He thong kiem tra username/password.
+3) Neu hop le, he thong phat hanh JWT chua role code.
+4) Cac API khac can phan quyen se kiem tra token theo JWT.
+5) Neu dang nhap thanh cong/that bai, he thong ghi nhat ky vao bang `dbo.AuditLog` (Action: `AUTH_LOGIN_SUCCESS`/`AUTH_LOGIN_FAILED`, EntityName: `AppUser`, EntityId: username).
+
+4.2. Quan ly phong
+1) Xem danh sach phong (GET /api/rooms).
+2) Them phong moi (POST /api/rooms).
+   - Kiem tra HotelId ton tai va RoomTypeId thuoc Hotel do.
+   - Kiem tra so phong khong trung trong cung Hotel.
+   - Ghi nhat ky `dbo.AuditLog` (Action: `ROOM_CREATE`, EntityName: `Room`, EntityId: RoomId, AfterJson: thong tin phong).
+3) Cap nhat phong (PUT /api/rooms/{id}).
+   - Kiem tra RoomTypeId hop le trong Hotel.
+   - Ghi nhat ky `dbo.AuditLog` (Action: `ROOM_UPDATE`, BeforeJson/AfterJson theo du lieu truoc va sau cap nhat).
+4) Ngung hoat dong phong (DELETE - xoa mem):
+   - IsActive = false
+   - StatusCode = OUT_OF_SERVICE
+   - Ghi nhat ky `dbo.AuditLog` (Action: `ROOM_SOFT_DELETE`, BeforeJson/AfterJson, reason: “Ngung hoạt động phòng (xóa mềm)”).
+
+4.3. Quan ly khach hang
+1) Danh sach khach hang (GET /api/customers).
+2) Tao khach hang moi (POST /api/customers).
+   - Validate du lieu dau vao (fullName, email, ...).
+
+4.4. Dat phong va kiem tra trung lich
+1) Tao reservation (POST /api/bookings).
+2) He thong kiem tra:
+   - Ngay check-out > check-in.
+   - Phong ton tai va duoc phep dat (khong trong trang thai bao tru/out-of-service).
+   - Khong trung lich voi reservation hop le:
+     existing.CheckInDate < new.CheckOutDate
+     AND existing.CheckOutDate > new.CheckInDate
+3) Neu hop le:
+   - Tao Reservation với StatusCode = CONFIRMED.
+   - (Trong DB co SP) cap nhat trang thai Room = RESERVED.
+
+4.5. Nhan phong (check-in)
+1) Thuc hien nhan phong (PUT /api/bookings/{id}/check-in).
+2) He thong kiem tra:
+   - Reservation ton tai và khong bi CANCELLED.
+3) Cap nhat:
+   - Reservation.StatusCode = CHECKED_IN
+   - Tao Stay (StatusCode = IN_HOUSE)
+   - Cap nhat Room.StatusCode = OCCUPIED
+
+4.6. Tra phong (check-out)
+1) Thuc hien tra phong (PUT /api/bookings/{id}/check-out).
+2) Cap nhat:
+   - Stay.StatusCode = CHECKED_OUT, CheckOutAt = now
+   - Reservation.StatusCode = CHECKED_OUT
+   - Room.StatusCode = DIRTY (san sang cho ve sinh)
+
+4.7. Huy dat phong
+1) Thuc hien huy (PUT /api/bookings/{id}/cancel).
+2) Cap nhat:
+   - Reservation.StatusCode = CANCELLED
+3) Kiem tra rang buoc theo nghiep vu (khong cho check-in sau khi cancel).
+
+4.8. Dich vu phat sinh theo lu tru
+1) Them dich vu cho booking/stay (POST /api/bookingservices).
+2) He thong kiem tra:
+   - Booking/Reservation ton tai
+   - HotelService ton tai va hop le
+3) Luu ServiceOrder:
+   - Quantity, UnitPrice, LineTotal (so tien)
+
+4.9. Xuat hoa don
+1) Thuc hien xuat hoa don (POST /api/invoices).
+2) He thong tinh:
+   - RoomAmount = so ngay * RatePerNight (theo reservation)
+   - ServiceAmount = tong dich vu ACTIVE (neu co)
+   - TotalAmount = RoomAmount + ServiceAmount
+3) Chi cho xuat hoa don sau khi booking/lu tru da CHECKED_OUT.
+
+4.10. Audit log
+1) Moi thao tac them/sua/ngung hoat dong/xoa mem co the ghi AuditLog.
+2) AuditLog lu thong tin:
+   - ActorUserId, Action, EntityName, EntityId
+   - BeforeJson, AfterJson, Reason (neu co)
+   - CreatedAt
+
+
+5. CHUC NANG (FUNCTIONAL REQUIREMENTS)
+5.1. Auth - JWT
+- Dang nhap bang username/password
+- Phat hanh JWT
+- Phan quyen theo role code
+- Bao ve endpoint bang [Authorize]
+
+5.2. Quản lý phòng (Rooms)
+- Danh sach phong va bo loc theo:
+  + roomNumber
+  + statusCode
+  + roomTypeId
+- Lấy chi tiết theo RoomId
+- Thêm phòng
+- Cập nhật phòng
+- Ngưng hoạt động phòng (xóa mềm)
+
+5.3. Quản lý khách hàng (Customers)
+- Danh sách
+- Thêm mới
+- (Goi y nang cap: sua/xoa mem/tim kiem theo SDT/CCCD)
+
+5.4. Đặt phòng (Bookings / Reservations)
+- Danh sách
+- Tạo đặt phòng
+- Check-in / Check-out
+- Hủy đặt phòng
+- (Goi y nang cap: endpoint tim kiem theo ngay, theo phong, theo trang thai)
+
+5.5. Dich vụ (HotelServices và BookingServices)
+- Danh mục dich vu (HotelServices)
+- Them dich vu phat sinh theo booking (BookingServices)
+
+5.6. Hóa đơn (Invoices)
+- Danh sách hóa đơn
+- Xuất hóa đơn khi booking da check-out
+
+5.7. Dashboard / Báo cáo (Gợi ý)
+- Ty le phong trong/da su dung
+- Doanh thu theo ngay/thang
+- Top dich vu su dung nhieu
+- (Goi y: dung view / stored procedure de giam tai truy van)
+
+
+6. API BACKEND (DANH SÁCH HIEN TAI)
+Base URL: http://localhost:5066
+
+6.1. Auth
+- POST /api/auth/login
+
+6.2. Rooms
+- GET /api/rooms?roomNumber=&statusCode=&roomTypeId=
+- GET /api/rooms/{id}
+- POST /api/rooms
+- PUT /api/rooms/{id}
+- DELETE /api/rooms/{id}  (xoa mem / ngung hoat dong)
+
+6.3. Customers
+- GET /api/customers
+- POST /api/customers
+
+6.4. Bookings
+- GET /api/bookings
+- POST /api/bookings
+- PUT /api/bookings/{id}/check-in
+- PUT /api/bookings/{id}/check-out
+- PUT /api/bookings/{id}/cancel
+
+6.5. HotelServices
+- GET /api/hotelservices
+- POST /api/hotelservices
+
+6.6. BookingServices
+- POST /api/bookingservices
+
+6.7. Invoices
+- GET /api/invoices
+- POST /api/invoices
+
+Luu y: mot so endpoint co the chua co (toi uu) GetById/Sua/Xoa cho tat ca entity. Neu can, se mo rong theo MVP.
+
+
+7. KIEM THU (TEST PLAN)
+- Test JWT:
+  + Login dung -> 200, co accessToken
+  + Login sai -> 401
+  + Gọi API khong token -> 401
+  + Gọi API co token -> 200
+- Test Rooms:
+  + Them phong hop le
+  + Them phong trung so phong
+  + Them phong sai HotelId/RoomTypeId -> 400
+  + Cap nhat phong
+  + Xoa mem (ngung hoat dong)
+- Test Booking:
+  + Dat phong hop le
+  + checkOut <= checkIn -> 400
+  + trung lich -> 400
+  + Check-in/check-out theo dung trang thai
+- Test Invoice:
+  + Xuat invoice khi checked-out -> 200
+  + Xuat invoice khi chua check-out -> 400
+
+
+8. HUONG PHAT TRIEN TIEP (FUTURE WORK)
+- Bo sung endpoint CRUD cho Customers (sua, xoa mem, tim kiem theo SDT)
+- Dung stored procedures DB de giam race khi dat phong
+- Them AuditLog trong API (ghi before/after cho moi cap nhat)
+- Bo sung module Dashboard va bao cao doanh thu (dung view)
+- Hoan thien frontend (React/Angular hoặc Razor Pages) voi UI phân quyền theo role
+- Them migration (thay EnsureCreated) neu chuyen sang EF schema management
+
+
+KET LUAN
+Tai lieu nay mo ta day du nghiep vu va cac chuc nang chinh cua he thong quan ly khach san, gan voi schema SQL Server va API backend.
+Ban co the dung danh sach API va test plan de kiem chung nghiep vu truoc khi trinh bay do an.
+

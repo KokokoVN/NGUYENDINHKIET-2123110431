@@ -7,7 +7,15 @@ public class CreateBookingRequest
     [Required]
     public int RoomId { get; set; }
 
+    /// <summary>
+    /// Khách đã có trong hệ thống. Không dùng cùng lúc với <see cref="NewCustomer"/>.
+    /// </summary>
     public long? CustomerId { get; set; }
+
+    /// <summary>
+    /// Tạo khách mới và gán vào đặt phòng trong cùng một giao dịch. Không dùng cùng lúc với <see cref="CustomerId"/>.
+    /// </summary>
+    public CreateCustomerRequest? NewCustomer { get; set; }
 
     [Required]
     public DateOnly CheckInDate { get; set; }
@@ -20,6 +28,12 @@ public class CreateBookingRequest
 
     [Range(0, 20)]
     public int Children { get; set; }
+
+    /// <summary>
+    /// Giá mỗi đêm; nếu null thì lấy theo BaseRate của loại phòng.
+    /// </summary>
+    [Range(0, 999999999)]
+    public decimal? RatePerNight { get; set; }
 
     [MaxLength(500)]
     public string? SpecialRequest { get; set; }

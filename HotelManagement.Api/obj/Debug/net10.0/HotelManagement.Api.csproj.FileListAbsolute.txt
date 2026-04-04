@@ -75,3 +75,6 @@ C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bi
 C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bin\Debug\net10.0\runtimes\win-x86\native\Microsoft.Data.SqlClient.SNI.dll
 C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\obj\Debug\net10.0\HotelManagement.Api.sourcelink.json
 C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bin\Debug\net10.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bin\Debug\net10.0\Swashbuckle.AspNetCore.Swagger.dll
+C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bin\Debug\net10.0\Swashbuckle.AspNetCore.SwaggerGen.dll
+C:\Users\nguye\OneDrive\Desktop\NGUYENDINHKIET-2123110431\HotelManagement.Api\bin\Debug\net10.0\Swashbuckle.AspNetCore.SwaggerUI.dll
