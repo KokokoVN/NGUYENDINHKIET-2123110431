@@ -311,3 +311,53 @@ THỨ TỰ GỢI Ý
   9) PUT/DELETE catalog nếu cần
 
 ====================================================================
+15) QUẢN LÝ USER + ROLE (ADMIN)
+====================================================================
+GET http://localhost:5066/api/users
+  → Danh sách user + role hiện tại.
+
+POST http://localhost:5066/api/users
+{
+  "username": "accountant01",
+  "password": "123456",
+  "fullName": "Kế toán 01",
+  "email": "accountant01@hotel.local",
+  "phone": "0900000001",
+  "isActive": true,
+  "roleCode": "ACCOUNTANT"
+}
+
+PUT http://localhost:5066/api/users/{id}
+{
+  "fullName": "Kế toán trưởng",
+  "email": "chief.accountant@hotel.local",
+  "phone": "0900009999"
+}
+
+PUT http://localhost:5066/api/users/{id}/status
+{
+  "isActive": false
+}
+
+PUT http://localhost:5066/api/users/{id}/roles
+{
+  "roleCodes": ["ACCOUNTANT", "MANAGER"]
+}
+
+GET http://localhost:5066/api/roles
+
+POST http://localhost:5066/api/roles
+{
+  "roleCode": "SUPERVISOR",
+  "roleName": "Giám sát",
+  "isActive": true
+}
+
+PUT http://localhost:5066/api/roles/{id}
+{
+  "roleCode": "SUPERVISOR",
+  "roleName": "Giám sát ca",
+  "isActive": true
+}
+
+====================================================================

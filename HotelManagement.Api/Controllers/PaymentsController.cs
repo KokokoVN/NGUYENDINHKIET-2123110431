@@ -31,7 +31,11 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
         }
 
         var list = await query.OrderByDescending(p => p.PaymentId).ToListAsync();
-        return Ok(list);
+        return Ok(new
+        {
+            message = "Lấy danh sách thanh toán thành công.",
+            data = list
+        });
     }
 
     [HttpGet("{id:long}")]
@@ -40,7 +44,11 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
         var p = await dbContext.Payments.FirstOrDefaultAsync(x => x.PaymentId == id);
         if (p is null)
             return NotFound(new { message = "Không tìm thấy thanh toán." });
-        return Ok(p);
+        return Ok(new
+        {
+            message = "Lấy chi tiết thanh toán thành công.",
+            data = p
+        });
     }
 
     [HttpPost]
@@ -48,7 +56,7 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
     public async Task<IActionResult> Create([FromBody] CreatePaymentRequest request)
     {
         if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+            return BadRequest(new { message = "Dữ liệu thanh toán không hợp lệ." });
 
         if (request.StayId.HasValue == request.ReservationId.HasValue)
             return BadRequest(new { message = "Cần gửi đúng một trong hai: stayId hoặc reservationId." });
@@ -97,7 +105,11 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
                 payment.Amount
             });
 
-        return Ok(payment);
+        return Ok(new
+        {
+            message = "Tạo thanh toán thành công.",
+            data = payment
+        });
     }
 
     [HttpPut("{id:long}/void")]
@@ -121,6 +133,10 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
             before: new { StatusCode = "PAID" },
             after: new { payment.StatusCode });
 
-        return Ok(payment);
+        return Ok(new
+        {
+            message = "Hủy giao dịch thành công.",
+            data = payment
+        });
     }
 }
