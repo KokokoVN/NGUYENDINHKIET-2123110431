@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, apiMessage } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
@@ -43,17 +43,17 @@ export function RoomTypesPage() {
     setTimeout(() => setSuccess(''), 4000);
   }
 
-  async function loadHotels() {
+  const loadHotels = useCallback(async () => {
     const { data } = await api.get<Hotel[]>('/api/hotels');
     setHotels(data);
-    if (data.length && !hotelId) setHotelId(data[0].hotelId);
-  }
+    setHotelId((prev) => prev || data[0]?.hotelId || 0);
+  }, []);
 
-  async function loadTypes(hid: number) {
+  const loadTypes = useCallback(async (hid: number) => {
     if (!hid) return;
     const { data } = await api.get<RoomType[]>(`/api/roomtypes?hotelId=${hid}`);
     setList(data);
-  }
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -63,7 +63,7 @@ export function RoomTypesPage() {
         setError(apiMessage(e));
       }
     })();
-  }, []);
+  }, [loadHotels]);
 
   useEffect(() => {
     if (!hotelId) return;
@@ -75,7 +75,7 @@ export function RoomTypesPage() {
         setError(apiMessage(e));
       }
     })();
-  }, [hotelId]);
+  }, [hotelId, loadTypes]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -154,9 +154,8 @@ export function RoomTypesPage() {
     <div>
       <PageHeader
         title="Loại phòng"
-        subtitle="CRUD theo khách sạn — xóa mềm khi không còn phòng gán loại này."
         actions={
-          <button type="button" className="btn btn--ghost" onClick={() => hotelId && void loadTypes(hotelId)}>
+          <button type="button" className="hm-btn hm-btn--ghost" onClick={() => hotelId && void loadTypes(hotelId)}>
             Làm mới
           </button>
         }
@@ -206,7 +205,7 @@ export function RoomTypesPage() {
             Mô tả
             <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
           </label>
-          <button type="submit" className="btn btn--primary" disabled={!hotelId}>
+          <button type="submit" className="hm-btn hm-btn--primary" disabled={!hotelId}>
             Lưu mới
           </button>
         </form>
@@ -250,12 +249,12 @@ export function RoomTypesPage() {
                       <td>{r.capacity}</td>
                       <td>{r.baseRate.toLocaleString('vi-VN')} đ</td>
                       <td className="cell-actions">
-                        <button type="button" className="btn btn--sm btn--ghost" onClick={() => openEdit(r)}>
+                        <button type="button" className="hm-btn hm-btn--sm hm-btn--ghost" onClick={() => openEdit(r)}>
                           Sửa
                         </button>
                         <button
                           type="button"
-                          className="btn btn--sm btn--danger"
+                          className="hm-btn hm-btn--sm hm-btn--danger"
                           onClick={() => setDeleteTarget(r)}
                         >
                           Ngưng HĐ
@@ -277,10 +276,10 @@ export function RoomTypesPage() {
         size="lg"
         footer={
           <>
-            <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => setEditOpen(false)}>
+            <button type="button" className="hm-btn hm-btn--ghost" disabled={saving} onClick={() => setEditOpen(false)}>
               Đóng
             </button>
-            <button type="submit" form="form-edit-rt" className="btn btn--primary" disabled={saving}>
+            <button type="submit" form="form-edit-rt" className="hm-btn hm-btn--primary" disabled={saving}>
               {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
             </button>
           </>

@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HotelManagement.Api.Services;
 
-public class BookingService(HotelDbContext dbContext, IAuditLogService auditLog) : IBookingService
+public class BookingService(HotelDbContext dbContext) : IBookingService
 {
     public async Task<(bool Success, string Message, Booking? Booking)> CreateBookingAsync(CreateBookingRequest request)
     {
@@ -23,6 +23,8 @@ public class BookingService(HotelDbContext dbContext, IAuditLogService auditLog)
                 request.NewCustomer.CompanyName);
             if (profileErr != null)
                 return (false, profileErr, null);
+            if (!string.Equals(request.NewCustomer.CustomerType, "INDIVIDUAL", StringComparison.OrdinalIgnoreCase))
+                return (false, "Hiện tại chỉ hỗ trợ đặt phòng cho khách cá nhân (INDIVIDUAL).", null);
         }
 
         var room = await dbContext.Rooms
@@ -40,10 +42,15 @@ public class BookingService(HotelDbContext dbContext, IAuditLogService auditLog)
 
         if (request.CustomerId.HasValue)
         {
-            var ok = await dbContext.Customers.AnyAsync(c =>
-                c.CustomerId == request.CustomerId.Value && c.DeletedAt == null);
-            if (!ok)
+            var existingCustomer = await dbContext.Customers
+                .Where(c => c.CustomerId == request.CustomerId.Value && c.DeletedAt == null)
+                .Select(c => new { c.CustomerId, c.CustomerType })
+                .FirstOrDefaultAsync();
+            if (existingCustomer is null)
                 return (false, "Khách hàng không tồn tại hoặc đã bị xóa.", null);
+
+            if (!string.Equals(existingCustomer.CustomerType, "INDIVIDUAL", StringComparison.OrdinalIgnoreCase))
+                return (false, "Hiện tại chỉ hỗ trợ đặt phòng cho khách cá nhân (INDIVIDUAL).", null);
         }
 
         var hasOverlap = await dbContext.Bookings.AnyAsync(b =>
@@ -83,36 +90,10 @@ public class BookingService(HotelDbContext dbContext, IAuditLogService auditLog)
         dbContext.Bookings.Add(booking);
         await dbContext.SaveChangesAsync();
 
-        if (booking.Customer != null)
-        {
-            await auditLog.WriteAsync(
-                "CUSTOMER_CREATE",
-                "Customer",
-                booking.Customer.CustomerId.ToString(),
-                after: booking.Customer);
-        }
-
         var withIncludes = await dbContext.Bookings
             .Include(b => b.Room)
             .Include(b => b.Customer)
             .FirstAsync(b => b.ReservationId == booking.ReservationId);
-
-        await auditLog.WriteAsync(
-            "BOOKING_CREATE",
-            "Reservation",
-            withIncludes.ReservationId.ToString(),
-            after: new
-            {
-                withIncludes.HotelId,
-                withIncludes.RoomId,
-                withIncludes.CustomerId,
-                withIncludes.StatusCode,
-                withIncludes.CheckInDate,
-                withIncludes.CheckOutDate,
-                withIncludes.Adults,
-                withIncludes.Children,
-                withIncludes.RatePerNight
-            });
 
         return (true, "Đặt phòng thành công.", withIncludes);
     }

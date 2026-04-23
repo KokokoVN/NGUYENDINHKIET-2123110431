@@ -13,18 +13,48 @@ namespace HotelManagement.Api.Controllers;
 [Route("api/[controller]")]
 public class InvoicesController(
     HotelDbContext dbContext,
-    IAuditLogService auditLog,
     ILoyaltyService loyalty) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
-        var invoices = await dbContext.Invoices
+        var query = dbContext.Invoices
             .Include(i => i.Booking)
-            .OrderByDescending(i => i.Id)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(i =>
+                i.PaymentMethod.Contains(s) ||
+                (i.Note != null && i.Note.Contains(s)) ||
+                i.BookingId.ToString().Contains(s));
+        }
+
+        query = query.OrderByDescending(i => i.Id);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var invoices = await query.ToListAsync();
+            return Ok(invoices);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
             .ToListAsync();
 
-        return Ok(invoices);
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:int}")]
@@ -36,7 +66,49 @@ public class InvoicesController(
         if (invoice is null)
             return NotFound(new { message = "Không tìm thấy hóa đơn." });
 
-        return Ok(invoice);
+        var serviceItems = await (
+            from s in dbContext.Stays
+            where s.ReservationId == invoice.BookingId
+            join o in dbContext.ServiceOrders on s.StayId equals o.StayId
+            where o.StatusCode == "ACTIVE"
+            join r in dbContext.Rooms on s.RoomId equals r.RoomId into roomJoin
+            from r in roomJoin.DefaultIfEmpty()
+            join hs in dbContext.HotelServices
+                on new { HotelId = s.HotelId, o.ServiceCode } equals new { hs.HotelId, hs.ServiceCode } into serviceJoin
+            from hs in serviceJoin.DefaultIfEmpty()
+            select new
+            {
+                o.ServiceOrderId,
+                o.StayId,
+                RoomId = s.RoomId,
+                RoomNumber = r != null ? r.RoomNumber : null,
+                o.ServiceCode,
+                ServiceName = hs != null ? hs.ServiceName : null,
+                o.Description,
+                o.Quantity,
+                o.UnitPrice,
+                lineTotal = o.Quantity * o.UnitPrice
+            }).ToListAsync();
+
+        var nightsStayed = invoice.Booking is null
+            ? 0
+            : Math.Max(0, invoice.Booking.CheckOutDate.DayNumber - invoice.Booking.CheckInDate.DayNumber);
+
+        return Ok(new
+        {
+            invoice.Id,
+            invoice.BookingId,
+            invoice.RoomAmount,
+            invoice.ServiceAmount,
+            invoice.TotalAmount,
+            invoice.PaidAt,
+            invoice.PaymentMethod,
+            invoice.Note,
+            booking = invoice.Booking,
+            nightsStayed,
+            ratePerNight = invoice.Booking?.RatePerNight,
+            serviceItems
+        });
     }
 
     [HttpPost]
@@ -96,32 +168,8 @@ public class InvoicesController(
 
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "INVOICE_CREATE",
-            "Invoice",
-            invoice.Id.ToString(),
-            after: new
-            {
-                invoice.BookingId,
-                invoice.RoomAmount,
-                invoice.ServiceAmount,
-                invoice.TotalAmount,
-                invoice.PaymentMethod
-            });
-
         if (earned != 0 && loyaltyCustomer != null)
         {
-            await auditLog.WriteAsync(
-                "LOYALTY_EARN",
-                "Customer",
-                loyaltyCustomer.CustomerId.ToString(),
-                reason: $"Hóa đơn #{invoice.Id}",
-                after: new
-                {
-                    pointsEarned = earned,
-                    loyaltyCustomer.LoyaltyPoints,
-                    loyaltyCustomer.LoyaltyTier
-                });
         }
 
         return Ok(new

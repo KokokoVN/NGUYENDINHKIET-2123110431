@@ -17,11 +17,7 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
     public DbSet<Stay> Stays => Set<Stay>();
     public DbSet<ServiceOrder> ServiceOrders => Set<ServiceOrder>();
     public DbSet<Payment> Payments => Set<Payment>();
-    public DbSet<Guest> Guests => Set<Guest>();
-    public DbSet<HousekeepingTask> HousekeepingTasks => Set<HousekeepingTask>();
-    public DbSet<MaintenanceTicket> MaintenanceTickets => Set<MaintenanceTicket>();
     public DbSet<HotelServiceItem> HotelServices => Set<HotelServiceItem>();
-    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,11 +63,7 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
             .HasForeignKey(i => i.BookingId);
 
         modelBuilder.Entity<Payment>().ToTable("Payment", "dbo").HasKey(x => x.PaymentId);
-        modelBuilder.Entity<Guest>().ToTable("Guest", "dbo").HasKey(x => x.GuestId);
-        modelBuilder.Entity<HousekeepingTask>().ToTable("HousekeepingTask", "dbo").HasKey(x => x.TaskId);
-        modelBuilder.Entity<MaintenanceTicket>().ToTable("MaintenanceTicket", "dbo").HasKey(x => x.TicketId);
         modelBuilder.Entity<HotelServiceItem>().ToTable("HotelService", "dbo").HasKey(x => x.HotelServiceId);
 
-        modelBuilder.Entity<AuditLog>().ToTable("AuditLog", "dbo").HasKey(x => x.AuditId);
     }
 }

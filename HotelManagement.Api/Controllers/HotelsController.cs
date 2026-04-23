@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +10,7 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class HotelsController(HotelDbContext dbContext) : ControllerBase
 {
     /// <summary>
     /// Lọc: search (tên hoặc địa chỉ), phone, email, includeInactive (mặc định chỉ khách sạn đang hoạt động).
@@ -21,7 +20,9 @@ public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLo
         [FromQuery] string? search,
         [FromQuery] string? phone,
         [FromQuery] string? email,
-        [FromQuery] bool includeInactive = false)
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = dbContext.Hotels.AsQueryable();
 
@@ -48,8 +49,27 @@ public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLo
             query = query.Where(h => h.Email != null && h.Email.Contains(e));
         }
 
-        var list = await query.OrderBy(h => h.HotelName).ToListAsync();
-        return Ok(list);
+        query = query.OrderBy(h => h.HotelName);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(list);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:int}")]
@@ -90,20 +110,6 @@ public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLo
         dbContext.Hotels.Add(hotel);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "HOTEL_CREATE",
-            "Hotel",
-            hotel.HotelId.ToString(),
-            after: new
-            {
-                hotel.HotelId,
-                hotel.HotelName,
-                hotel.Address,
-                hotel.Phone,
-                hotel.Email,
-                hotel.IsActive
-            });
-
         return Ok(new { message = "Thêm khách sạn thành công.", data = hotel });
     }
 
@@ -141,21 +147,6 @@ public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLo
 
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "HOTEL_UPDATE",
-            "Hotel",
-            hotel.HotelId.ToString(),
-            before: before,
-            after: new
-            {
-                hotel.HotelId,
-                hotel.HotelName,
-                hotel.Address,
-                hotel.Phone,
-                hotel.Email,
-                hotel.IsActive
-            });
-
         return Ok(new { message = "Cập nhật khách sạn thành công.", data = hotel });
     }
 
@@ -186,23 +177,29 @@ public class HotelsController(HotelDbContext dbContext, IAuditLogService auditLo
         hotel.IsActive = false;
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "HOTEL_SOFT_DELETE",
-            "Hotel",
-            hotel.HotelId.ToString(),
-            reason: "Ngưng hoạt động khách sạn (xóa mềm)",
-            before: before,
-            after: new
-            {
-                hotel.HotelId,
-                hotel.HotelName,
-                hotel.Address,
-                hotel.Phone,
-                hotel.Email,
-                hotel.IsActive
-            });
-
         return Ok(new { message = "Ngưng hoạt động khách sạn thành công." });
+    }
+
+    [HttpPut("{id:int}/restore")]
+    [Authorize(Roles = "ADMIN,RECEPTION")]
+    public async Task<IActionResult> Restore(int id)
+    {
+        var hotel = await dbContext.Hotels.FirstOrDefaultAsync(h => h.HotelId == id && !h.IsActive);
+        if (hotel is null)
+            return NotFound(new { message = "Không tìm thấy khách sạn đã ngưng hoạt động." });
+
+        var dupResult = await ValidateHotelUniquenessAsync(
+            hotel.HotelName.Trim(),
+            string.IsNullOrWhiteSpace(hotel.Phone) ? null : hotel.Phone.Trim(),
+            string.IsNullOrWhiteSpace(hotel.Email) ? null : hotel.Email.Trim(),
+            excludeHotelId: id);
+        if (dupResult != null)
+            return dupResult;
+
+        hotel.IsActive = true;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Đã kích hoạt lại khách sạn." });
     }
 
     /// <summary>Không cho trùng tên / SĐT / email với khách sạn khác đang hoạt động.</summary>

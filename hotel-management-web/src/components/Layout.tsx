@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { viUserRole } from '../utils/vi';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   'nav-link' + (isActive ? ' nav-link--active' : '');
@@ -19,7 +20,6 @@ function NavItem({ to, end, icon, children }: { to: string; end?: boolean; icon:
 export function Layout() {
   const { fullName, username, role, logout } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = role === 'ADMIN';
   const initial = (fullName || username || '?').charAt(0).toUpperCase();
 
   return (
@@ -47,52 +47,39 @@ export function Layout() {
         </div>
 
         <div className="sidebar__section">
-          <div className="sidebar__section-label">Vận hành</div>
+          <div className="sidebar__section-label">Quản lý cơ sở</div>
           <nav className="sidebar__nav">
-            <NavItem to="/hotels" icon="🏢">
-              Khách sạn
-            </NavItem>
-            <NavItem to="/room-types" icon="🛏️">
-              Loại phòng
-            </NavItem>
-            <NavItem to="/rooms" icon="🚪">
-              Phòng
-            </NavItem>
-            <NavItem to="/customers" icon="👤">
-              Khách hàng
-            </NavItem>
-            <NavItem to="/bookings" icon="📅">
-              Đặt phòng
-            </NavItem>
+            <NavItem to="/hotels" icon="🏢">Khách sạn</NavItem>
+            <NavItem to="/room-types" icon="🛏️">Loại phòng</NavItem>
+            <NavItem to="/rooms" icon="🚪">Phòng</NavItem>
           </nav>
         </div>
 
         <div className="sidebar__section">
-          <div className="sidebar__section-label">Tài chính</div>
+          <div className="sidebar__section-label">Khách và lưu trú</div>
           <nav className="sidebar__nav">
-            <NavItem to="/invoices" icon="🧾">
-              Hóa đơn
-            </NavItem>
+            <NavItem to="/customers" icon="👤">Khách hàng</NavItem>
+            <NavItem to="/bookings" icon="📅">Đặt phòng</NavItem>
+            <NavItem to="/stays" icon="🛎️">Lưu trú</NavItem>
           </nav>
         </div>
 
-        {isAdmin && (
-          <div className="sidebar__section">
-            <div className="sidebar__section-label">Hệ thống</div>
-            <nav className="sidebar__nav">
-              <NavItem to="/users" icon="⚙️">
-                Người dùng
-              </NavItem>
-            </nav>
-          </div>
-        )}
+        <div className="sidebar__section">
+          <div className="sidebar__section-label">Dịch vụ và tài chính</div>
+          <nav className="sidebar__nav">
+            <NavItem to="/services" icon="🧾">Dịch vụ</NavItem>
+            <NavItem to="/service-orders" icon="🧰">Dịch vụ sử dụng</NavItem>
+            <NavItem to="/invoices" icon="🧾">Hóa đơn</NavItem>
+            <NavItem to="/payments" icon="💳">Thanh toán</NavItem>
+          </nav>
+        </div>
       </aside>
 
       <div className="main">
         <header className="topbar">
           <div className="topbar__brand">
             <span className="topbar__brand-name">LuxeStay</span>
-            <span className="topbar__brand-muted">Console</span>
+            <span className="topbar__brand-muted">Bảng điều khiển</span>
           </div>
           <div className="topbar__right">
             <div className="topbar__user">
@@ -101,12 +88,12 @@ export function Layout() {
               </div>
               <div className="topbar__meta">
                 <span className="topbar__name">{fullName || username}</span>
-                <span className="topbar__role">{role}</span>
+                <span className="topbar__role">{viUserRole(role)}</span>
               </div>
             </div>
             <button
               type="button"
-              className="btn btn--ghost"
+              className="hm-btn hm-btn--ghost"
               onClick={() => {
                 logout();
                 navigate('/login', { replace: true });

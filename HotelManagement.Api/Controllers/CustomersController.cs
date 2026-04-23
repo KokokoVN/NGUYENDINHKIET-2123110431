@@ -12,16 +12,22 @@ namespace HotelManagement.Api.Controllers;
 [Route("api/[controller]")]
 public class CustomersController(
     HotelDbContext dbContext,
-    IAuditLogService auditLog,
     ILoyaltyService loyalty) : ControllerBase
 {
     /// <summary>
     /// Danh sách khách hàng chưa xóa mềm; lọc theo search (họ tên/công ty/SĐT/email).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? search)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search,
+        [FromQuery] string? idNumber,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
-        var query = dbContext.Customers.AsQueryable().Where(c => c.DeletedAt == null);
+        var query = dbContext.Customers.AsQueryable();
+        if (!includeInactive)
+            query = query.Where(c => c.DeletedAt == null);
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -32,16 +38,42 @@ public class CustomersController(
                 (c.Phone != null && c.Phone.Contains(s)) ||
                 (c.Email != null && c.Email.Contains(s)));
         }
+        if (!string.IsNullOrWhiteSpace(idNumber))
+        {
+            var idn = idNumber.Trim();
+            query = query.Where(c => c.IdNumber != null && c.IdNumber.Contains(idn));
+        }
 
-        var list = await query.OrderByDescending(c => c.CustomerId).ToListAsync();
-        return Ok(list);
+        query = query.OrderByDescending(c => c.CustomerId);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(list);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:long}")]
-    public async Task<IActionResult> GetById(long id)
+    public async Task<IActionResult> GetById(long id, [FromQuery] bool includeInactive = false)
     {
-        var customer = await dbContext.Customers
-            .FirstOrDefaultAsync(c => c.CustomerId == id && c.DeletedAt == null);
+        var query = dbContext.Customers.AsQueryable().Where(c => c.CustomerId == id);
+        if (!includeInactive)
+            query = query.Where(c => c.DeletedAt == null);
+        var customer = await query.FirstOrDefaultAsync();
         if (customer is null)
             return NotFound(new { message = "Không tìm thấy khách hàng." });
 
@@ -93,14 +125,6 @@ public class CustomersController(
         loyalty.ApplyPointsAndTier(customer, request.PointsDelta);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "LOYALTY_ADJUST",
-            "Customer",
-            customer.CustomerId.ToString(),
-            reason: request.Reason?.Trim(),
-            before: before,
-            after: new { customer.LoyaltyPoints, customer.LoyaltyTier });
-
         return Ok(new
         {
             message = "Đã cập nhật điểm / hạng.",
@@ -120,12 +144,6 @@ public class CustomersController(
         var entity = request.ToEntity();
         dbContext.Customers.Add(entity);
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "CUSTOMER_CREATE",
-            "Customer",
-            entity.CustomerId.ToString(),
-            after: entity);
 
         return Ok(entity);
     }
@@ -148,7 +166,10 @@ public class CustomersController(
             customer.CustomerType,
             customer.FullName,
             customer.CompanyName,
-            customer.TaxCode,
+            customer.IdType,
+            customer.IdNumber,
+            customer.DateOfBirth,
+            customer.Nationality,
             customer.Phone,
             customer.Email,
             customer.Notes
@@ -157,19 +178,15 @@ public class CustomersController(
         customer.CustomerType = request.CustomerType.Trim().ToUpperInvariant();
         customer.FullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
         customer.CompanyName = string.IsNullOrWhiteSpace(request.CompanyName) ? null : request.CompanyName.Trim();
-        customer.TaxCode = string.IsNullOrWhiteSpace(request.TaxCode) ? null : request.TaxCode.Trim();
+        customer.IdType = string.IsNullOrWhiteSpace(request.IdType) ? null : request.IdType.Trim();
+        customer.IdNumber = string.IsNullOrWhiteSpace(request.IdNumber) ? null : request.IdNumber.Trim();
+        customer.DateOfBirth = request.DateOfBirth;
+        customer.Nationality = string.IsNullOrWhiteSpace(request.Nationality) ? null : request.Nationality.Trim();
         customer.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         customer.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
         customer.Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
 
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "CUSTOMER_UPDATE",
-            "Customer",
-            customer.CustomerId.ToString(),
-            before: before,
-            after: customer);
 
         return Ok(customer);
     }
@@ -186,13 +203,22 @@ public class CustomersController(
         customer.DeletedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "CUSTOMER_SOFT_DELETE",
-            "Customer",
-            customer.CustomerId.ToString(),
-            before: new { customer.FullName, customer.CompanyName, customer.Phone });
-
         return Ok(new { message = "Đã xóa mềm khách hàng." });
+    }
+
+    [HttpPut("{id:long}/restore")]
+    [Authorize(Roles = "ADMIN,RECEPTION")]
+    public async Task<IActionResult> Restore(long id)
+    {
+        var customer = await dbContext.Customers
+            .FirstOrDefaultAsync(c => c.CustomerId == id && c.DeletedAt != null);
+        if (customer is null)
+            return NotFound(new { message = "Không tìm thấy khách hàng đã xóa mềm." });
+
+        customer.DeletedAt = null;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Đã khôi phục khách hàng." });
     }
 
     private static string? ValidateCustomerProfile(string customerType, string? fullName, string? companyName)

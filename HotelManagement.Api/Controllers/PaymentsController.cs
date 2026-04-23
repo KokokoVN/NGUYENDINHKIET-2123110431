@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,13 +10,16 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class PaymentsController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class PaymentsController(HotelDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] long? stayId,
         [FromQuery] long? reservationId,
-        [FromQuery] string? statusCode)
+        [FromQuery] string? statusCode,
+        [FromQuery] string? search,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = dbContext.Payments.AsQueryable();
         if (stayId.HasValue)
@@ -29,12 +31,42 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
             var s = statusCode.Trim().ToUpperInvariant();
             query = query.Where(p => p.StatusCode == s);
         }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(p =>
+                (p.ReferenceNo != null && p.ReferenceNo.Contains(s)) ||
+                (p.Note != null && p.Note.Contains(s)) ||
+                p.PaymentType.Contains(s) ||
+                p.MethodCode.Contains(s));
+        }
 
-        var list = await query.OrderByDescending(p => p.PaymentId).ToListAsync();
+        query = query.OrderByDescending(p => p.PaymentId);
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(new
+            {
+                message = "Lấy danh sách thanh toán thành công.",
+                data = list
+            });
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
         return Ok(new
         {
             message = "Lấy danh sách thanh toán thành công.",
-            data = list
+            data = new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages }
         });
     }
 
@@ -92,19 +124,6 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
         dbContext.Payments.Add(payment);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "PAYMENT_CREATE",
-            "Payment",
-            payment.PaymentId.ToString(),
-            after: new
-            {
-                payment.StayId,
-                payment.ReservationId,
-                payment.PaymentType,
-                payment.MethodCode,
-                payment.Amount
-            });
-
         return Ok(new
         {
             message = "Tạo thanh toán thành công.",
@@ -125,13 +144,6 @@ public class PaymentsController(HotelDbContext dbContext, IAuditLogService audit
         payment.StatusCode = "VOID";
         payment.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "PAYMENT_VOID",
-            "Payment",
-            payment.PaymentId.ToString(),
-            before: new { StatusCode = "PAID" },
-            after: new { payment.StatusCode });
 
         return Ok(new
         {

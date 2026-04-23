@@ -39,7 +39,12 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
           <h2 id="modal-title" className="modal__title">
             {title}
           </h2>
-          <button type="button" className="modal__close btn btn--ghost btn--sm" onClick={onClose} aria-label="Đóng">
+          <button
+            type="button"
+            className="modal__close hm-btn hm-btn--ghost hm-btn--sm"
+            onClick={onClose}
+            aria-label="Đóng"
+          >
             ✕
           </button>
         </div>

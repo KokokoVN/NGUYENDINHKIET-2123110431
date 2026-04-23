@@ -30,12 +30,12 @@ export function ConfirmDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={loading}>
+          <button type="button" className="hm-btn hm-btn--ghost" onClick={onCancel} disabled={loading}>
             {cancelLabel}
           </button>
           <button
             type="button"
-            className={danger ? 'btn btn--danger' : 'btn btn--primary'}
+            className={danger ? 'hm-btn hm-btn--danger' : 'hm-btn hm-btn--primary'}
             disabled={loading}
             onClick={() => void onConfirm()}
           >

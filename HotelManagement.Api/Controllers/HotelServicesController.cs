@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,19 +11,48 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class HotelServicesController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class HotelServicesController(HotelDbContext dbContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? hotelId, [FromQuery] bool includeInactive = false)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? hotelId,
+        [FromQuery] string? search,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = dbContext.HotelServices.AsQueryable();
         if (hotelId.HasValue)
             query = query.Where(x => x.HotelId == hotelId.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            query = query.Where(x => x.ServiceCode.Contains(s) || x.ServiceName.Contains(s));
+        }
         if (!includeInactive)
             query = query.Where(x => x.IsActive);
 
-        var list = await query.OrderBy(x => x.HotelId).ThenBy(x => x.ServiceCode).ToListAsync();
-        return Ok(list);
+        query = query.OrderBy(x => x.HotelId).ThenBy(x => x.ServiceCode);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(list);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:int}")]
@@ -66,12 +94,6 @@ public class HotelServicesController(HotelDbContext dbContext, IAuditLogService 
         dbContext.HotelServices.Add(entity);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "HOTEL_SERVICE_CREATE",
-            "HotelService",
-            entity.HotelServiceId.ToString(),
-            after: entity);
-
         return Ok(entity);
     }
 
@@ -89,13 +111,6 @@ public class HotelServicesController(HotelDbContext dbContext, IAuditLogService 
         entity.IsActive = request.IsActive;
         entity.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "HOTEL_SERVICE_UPDATE",
-            "HotelService",
-            entity.HotelServiceId.ToString(),
-            before: before,
-            after: entity);
 
         return Ok(entity);
     }

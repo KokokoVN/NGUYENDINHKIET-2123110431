@@ -15,7 +15,15 @@ public class UpdateCustomerRequest
     public string? CompanyName { get; set; }
 
     [MaxLength(50)]
-    public string? TaxCode { get; set; }
+    public string? IdType { get; set; }
+
+    [MaxLength(50)]
+    public string? IdNumber { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    [MaxLength(100)]
+    public string? Nationality { get; set; }
 
     [MaxLength(50)]
     public string? Phone { get; set; }

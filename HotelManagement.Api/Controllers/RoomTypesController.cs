@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +10,7 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class RoomTypesController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class RoomTypesController(HotelDbContext dbContext) : ControllerBase
 {
     /// <summary>
     /// Lọc theo hotelId, tên (search), capacity tối thiểu, baseRate tối đa, includeInactive.
@@ -22,7 +21,9 @@ public class RoomTypesController(HotelDbContext dbContext, IAuditLogService audi
         [FromQuery] string? search,
         [FromQuery] int? minCapacity,
         [FromQuery] decimal? maxBaseRate,
-        [FromQuery] bool includeInactive = false)
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = dbContext.RoomTypes.AsQueryable();
 
@@ -44,8 +45,27 @@ public class RoomTypesController(HotelDbContext dbContext, IAuditLogService audi
         if (maxBaseRate.HasValue)
             query = query.Where(rt => rt.BaseRate <= maxBaseRate.Value);
 
-        var list = await query.OrderBy(rt => rt.HotelId).ThenBy(rt => rt.RoomTypeName).ToListAsync();
-        return Ok(list);
+        query = query.OrderBy(rt => rt.HotelId).ThenBy(rt => rt.RoomTypeName);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(list);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:int}")]
@@ -91,21 +111,6 @@ public class RoomTypesController(HotelDbContext dbContext, IAuditLogService audi
         dbContext.RoomTypes.Add(roomType);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "ROOM_TYPE_CREATE",
-            "RoomType",
-            roomType.RoomTypeId.ToString(),
-            after: new
-            {
-                roomType.RoomTypeId,
-                roomType.HotelId,
-                roomType.RoomTypeName,
-                roomType.Capacity,
-                roomType.BaseRate,
-                roomType.Description,
-                roomType.IsActive
-            });
-
         return Ok(new { message = "Thêm loại phòng thành công.", data = roomType });
     }
 
@@ -145,22 +150,6 @@ public class RoomTypesController(HotelDbContext dbContext, IAuditLogService audi
 
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "ROOM_TYPE_UPDATE",
-            "RoomType",
-            roomType.RoomTypeId.ToString(),
-            before: before,
-            after: new
-            {
-                roomType.RoomTypeId,
-                roomType.HotelId,
-                roomType.RoomTypeName,
-                roomType.Capacity,
-                roomType.BaseRate,
-                roomType.Description,
-                roomType.IsActive
-            });
-
         return Ok(new { message = "Cập nhật loại phòng thành công.", data = roomType });
     }
 
@@ -191,23 +180,32 @@ public class RoomTypesController(HotelDbContext dbContext, IAuditLogService audi
         roomType.IsActive = false;
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "ROOM_TYPE_SOFT_DELETE",
-            "RoomType",
-            roomType.RoomTypeId.ToString(),
-            reason: "Ngưng hoạt động loại phòng (xóa mềm)",
-            before: before,
-            after: new
-            {
-                roomType.RoomTypeId,
-                roomType.HotelId,
-                roomType.RoomTypeName,
-                roomType.Capacity,
-                roomType.BaseRate,
-                roomType.Description,
-                roomType.IsActive
-            });
-
         return Ok(new { message = "Ngưng hoạt động loại phòng thành công." });
+    }
+
+    [HttpPut("{id:int}/restore")]
+    [Authorize(Roles = "ADMIN,RECEPTION")]
+    public async Task<IActionResult> Restore(int id)
+    {
+        var roomType = await dbContext.RoomTypes.FirstOrDefaultAsync(rt => rt.RoomTypeId == id && !rt.IsActive);
+        if (roomType is null)
+            return NotFound(new { message = "Không tìm thấy loại phòng đã ngưng hoạt động." });
+
+        var hotelOk = await dbContext.Hotels.AnyAsync(h => h.HotelId == roomType.HotelId && h.IsActive);
+        if (!hotelOk)
+            return BadRequest(new { message = "Khách sạn của loại phòng này đang ngưng hoạt động." });
+
+        var dup = await dbContext.RoomTypes.AnyAsync(rt =>
+            rt.RoomTypeId != id &&
+            rt.HotelId == roomType.HotelId &&
+            rt.RoomTypeName == roomType.RoomTypeName &&
+            rt.IsActive);
+        if (dup)
+            return BadRequest(new { message = "Đã có loại phòng đang hoạt động cùng tên trong khách sạn này." });
+
+        roomType.IsActive = true;
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Đã kích hoạt lại loại phòng." });
     }
 }

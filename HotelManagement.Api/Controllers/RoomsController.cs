@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,15 +10,20 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class RoomsController(HotelDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? roomNumber,
         [FromQuery] string? statusCode,
-        [FromQuery] int? roomTypeId)
+        [FromQuery] int? roomTypeId,
+        [FromQuery] bool includeInactive = false,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
-        var query = dbContext.Rooms.AsQueryable().Where(r => r.IsActive);
+        var query = dbContext.Rooms.AsQueryable();
+        if (!includeInactive)
+            query = query.Where(r => r.IsActive);
 
         if (!string.IsNullOrWhiteSpace(roomNumber))
         {
@@ -38,15 +42,36 @@ public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog
             query = query.Where(r => r.RoomTypeId == roomTypeId.Value);
         }
 
-        var rooms = await query.OrderBy(r => r.RoomNumber).ToListAsync();
+        query = query.OrderBy(r => r.RoomNumber);
 
-        return Ok(rooms);
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var rooms = await query.ToListAsync();
+            return Ok(rooms);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetById(int id)
+    public async Task<IActionResult> GetById(int id, [FromQuery] bool includeInactive = false)
     {
-        var room = await dbContext.Rooms.FirstOrDefaultAsync(r => r.RoomId == id && r.IsActive);
+        var query = dbContext.Rooms.AsQueryable().Where(r => r.RoomId == id);
+        if (!includeInactive)
+            query = query.Where(r => r.IsActive);
+        var room = await query.FirstOrDefaultAsync();
         if (room is null)
         {
             return NotFound(new { message = "Không tìm thấy phòng." });
@@ -95,21 +120,6 @@ public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog
 
         dbContext.Rooms.Add(room);
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "ROOM_CREATE",
-            "Room",
-            room.RoomId.ToString(),
-            after: new
-            {
-                room.RoomId,
-                room.HotelId,
-                room.RoomTypeId,
-                room.RoomNumber,
-                room.Floor,
-                room.StatusCode,
-                room.IsActive
-            });
 
         return Ok(new { message = "Thêm phòng thành công.", data = room });
     }
@@ -162,22 +172,6 @@ public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog
 
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "ROOM_UPDATE",
-            "Room",
-            room.RoomId.ToString(),
-            before: before,
-            after: new
-            {
-                room.RoomId,
-                room.HotelId,
-                room.RoomTypeId,
-                room.RoomNumber,
-                room.Floor,
-                room.StatusCode,
-                room.IsActive
-            });
-
         return Ok(new { message = "Cập nhật phòng thành công.", data = room });
     }
 
@@ -206,23 +200,39 @@ public class RoomsController(HotelDbContext dbContext, IAuditLogService auditLog
         room.StatusCode = "OUT_OF_SERVICE";
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "ROOM_SOFT_DELETE",
-            "Room",
-            room.RoomId.ToString(),
-            reason: "Ngưng hoạt động phòng (xóa mềm)",
-            before: before,
-            after: new
-            {
-                room.RoomId,
-                room.HotelId,
-                room.RoomTypeId,
-                room.RoomNumber,
-                room.Floor,
-                room.StatusCode,
-                room.IsActive
-            });
-
         return Ok(new { message = "Ngưng hoạt động phòng thành công." });
+    }
+
+    [HttpPut("{id:int}/restore")]
+    [Authorize(Roles = "ADMIN,RECEPTION")]
+    public async Task<IActionResult> Restore(int id)
+    {
+        var room = await dbContext.Rooms.FirstOrDefaultAsync(r => r.RoomId == id && !r.IsActive);
+        if (room is null)
+            return NotFound(new { message = "Không tìm thấy phòng đã ngưng hoạt động." });
+
+        var hotelOk = await dbContext.Hotels.AnyAsync(h => h.HotelId == room.HotelId && h.IsActive);
+        if (!hotelOk)
+            return BadRequest(new { message = "Khách sạn của phòng này đang ngưng hoạt động." });
+
+        var roomTypeOk = await dbContext.RoomTypes.AnyAsync(rt =>
+            rt.RoomTypeId == room.RoomTypeId && rt.HotelId == room.HotelId && rt.IsActive);
+        if (!roomTypeOk)
+            return BadRequest(new { message = "Loại phòng của phòng này đang ngưng hoạt động." });
+
+        var duplicate = await dbContext.Rooms.AnyAsync(r =>
+            r.RoomId != id &&
+            r.HotelId == room.HotelId &&
+            r.RoomNumber == room.RoomNumber &&
+            r.IsActive);
+        if (duplicate)
+            return BadRequest(new { message = "Đã có phòng đang hoạt động trùng số phòng." });
+
+        room.IsActive = true;
+        if (room.StatusCode == "OUT_OF_SERVICE")
+            room.StatusCode = "VACANT";
+        await dbContext.SaveChangesAsync();
+
+        return Ok(new { message = "Đã kích hoạt lại phòng." });
     }
 }

@@ -31,11 +31,11 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-page__hero">
         <h2>Chào mừng trở lại</h2>
-        <p>Hệ thống quản lý phòng, đặt chỗ, khách hàng và hóa đơn — đồng bộ với API ASP.NET Core.</p>
+        <p>Hệ thống quản lý phòng, đặt chỗ, khách hàng và hóa đơn cho khách sạn.</p>
         <ul className="login-page__features">
           <li>Bảng điều khiển doanh thu &amp; tỷ lệ phòng</li>
           <li>Luồng đặt phòng → nhận phòng → trả phòng</li>
-          <li>Tích điểm &amp; hạng khách (theo cấu hình API)</li>
+          <li>Tích điểm và hạng khách thân thiết</li>
         </ul>
       </div>
       <div className="login-page__form-area">
@@ -74,7 +74,7 @@ export function LoginPage() {
             </label>
             <button
               type="submit"
-              className={'btn btn--primary' + (loading ? ' btn--loading' : '')}
+              className={'hm-btn hm-btn--primary' + (loading ? ' hm-btn--loading' : '')}
               disabled={loading}
             >
               {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}

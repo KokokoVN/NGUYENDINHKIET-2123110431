@@ -16,7 +16,15 @@ public class CreateCustomerRequest
     public string? CompanyName { get; set; }
 
     [MaxLength(50)]
-    public string? TaxCode { get; set; }
+    public string? IdType { get; set; }
+
+    [MaxLength(50)]
+    public string? IdNumber { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    [MaxLength(100)]
+    public string? Nationality { get; set; }
 
     [MaxLength(50)]
     public string? Phone { get; set; }
@@ -36,7 +44,10 @@ public class CreateCustomerRequest
             CustomerType = t,
             FullName = string.IsNullOrWhiteSpace(FullName) ? null : FullName.Trim(),
             CompanyName = string.IsNullOrWhiteSpace(CompanyName) ? null : CompanyName.Trim(),
-            TaxCode = string.IsNullOrWhiteSpace(TaxCode) ? null : TaxCode.Trim(),
+            IdType = string.IsNullOrWhiteSpace(IdType) ? null : IdType.Trim(),
+            IdNumber = string.IsNullOrWhiteSpace(IdNumber) ? null : IdNumber.Trim(),
+            DateOfBirth = DateOfBirth,
+            Nationality = string.IsNullOrWhiteSpace(Nationality) ? null : Nationality.Trim(),
             Phone = string.IsNullOrWhiteSpace(Phone) ? null : Phone.Trim(),
             Email = string.IsNullOrWhiteSpace(Email) ? null : Email.Trim(),
             Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim(),

@@ -13,8 +13,7 @@ namespace HotelManagement.Api.Controllers;
 [Route("api/[controller]")]
 public class BookingsController(
     IBookingService bookingService,
-    HotelDbContext dbContext,
-    IAuditLogService auditLog) : ControllerBase
+    HotelDbContext dbContext) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(
@@ -25,7 +24,9 @@ public class BookingsController(
         [FromQuery] DateOnly? checkInFrom,
         [FromQuery] DateOnly? checkInTo,
         [FromQuery] DateOnly? checkOutFrom,
-        [FromQuery] DateOnly? checkOutTo)
+        [FromQuery] DateOnly? checkOutTo,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         var query = dbContext.Bookings
             .Include(b => b.Room)
@@ -53,8 +54,27 @@ public class BookingsController(
         if (checkOutTo.HasValue)
             query = query.Where(b => b.CheckOutDate <= checkOutTo.Value);
 
-        var bookings = await query.OrderByDescending(b => b.ReservationId).ToListAsync();
-        return Ok(bookings);
+        query = query.OrderByDescending(b => b.ReservationId);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var bookings = await query.ToListAsync();
+            return Ok(bookings);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
     }
 
     [HttpGet("{id:long}")]
@@ -94,6 +114,10 @@ public class BookingsController(
         if (booking.StatusCode != "CONFIRMED")
             return BadRequest(new { message = "Chỉ nhận phòng khi đơn đang ở trạng thái CONFIRMED." });
 
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (today < booking.CheckInDate)
+            return BadRequest(new { message = "Chưa đến ngày nhận phòng theo đơn đặt." });
+
         if (await dbContext.Stays.AnyAsync(s => s.ReservationId == id && s.StatusCode == "IN_HOUSE"))
         {
             return BadRequest(new { message = "Đơn đã được check-in (đã có lưu trú đang ở)." });
@@ -119,18 +143,6 @@ public class BookingsController(
             room.StatusCode = "OCCUPIED";
 
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "STAY_CHECK_IN",
-            "Stay",
-            stay.StayId.ToString(),
-            after: new
-            {
-                stay.ReservationId,
-                stay.RoomId,
-                stay.HotelId,
-                stay.CheckInAt
-            });
 
         return Ok(new { message = "Nhận phòng thành công.", data = booking, stayId = stay.StayId });
     }
@@ -168,13 +180,6 @@ public class BookingsController(
             room.StatusCode = "DIRTY";
 
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "STAY_CHECK_OUT",
-            "Stay",
-            stay.StayId.ToString(),
-            before: beforeStay,
-            after: new { StatusCode = stay.StatusCode, stay.CheckOutAt });
 
         return Ok(new { message = "Trả phòng thành công.", data = booking, stayId = stay.StayId });
     }

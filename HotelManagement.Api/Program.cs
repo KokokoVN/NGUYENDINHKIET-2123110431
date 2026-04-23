@@ -47,8 +47,8 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description =
             "API quản lý khách sạn — Swagger: POST /api/auth/login → Authorize → dán accessToken.\n" +
-            "Nhóm: Auth, Hotels, RoomTypes, Rooms, Customers, Guests, Bookings, Stays, HotelServices (danh mục), " +
-            "ServiceOrders, Payments, Invoices, HousekeepingTasks, MaintenanceTickets, Reports, AuditLogs, Users, Roles.\n" +
+            "Nhóm: Auth, Hotels, RoomTypes, Rooms, Customers, Bookings, Stays, HotelServices (danh mục), " +
+            "ServiceOrders, Payments, Invoices.\n" +
             "Tích điểm: khi xuất hóa đơn, khách có CustomerId được cộng điểm (1 điểm/100.000đ); hạng BRONZE/SILVER/GOLD/PLATINUM."
     });
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -74,7 +74,6 @@ builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -103,6 +102,22 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
         .AllowAnyMethod()));
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<HotelDbContext>();
+    // Đồng bộ nhanh schema Customer sau khi chuyển dữ liệu từ Guests sang Customers.
+    db.Database.ExecuteSqlRaw("""
+        IF COL_LENGTH('dbo.Customer', 'IdType') IS NULL
+            ALTER TABLE [dbo].[Customer] ADD [IdType] NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Customer', 'IdNumber') IS NULL
+            ALTER TABLE [dbo].[Customer] ADD [IdNumber] NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Customer', 'DateOfBirth') IS NULL
+            ALTER TABLE [dbo].[Customer] ADD [DateOfBirth] DATE NULL;
+        IF COL_LENGTH('dbo.Customer', 'Nationality') IS NULL
+            ALTER TABLE [dbo].[Customer] ADD [Nationality] NVARCHAR(100) NULL;
+    """);
+}
 
 app.UseExceptionHandler(errorApp =>
 {
@@ -194,8 +209,6 @@ app.Use(async (context, next) =>
                  ?? "anonymous";
     var username = context.User.Identity?.Name ?? "anonymous";
 
-    int? actorUserId = int.TryParse(userId, out var parsedUserId) ? parsedUserId : null;
-
     try
     {
         await next();
@@ -209,30 +222,6 @@ app.Use(async (context, next) =>
             userId,
             username,
             context.Request.QueryString.Value ?? string.Empty);
-
-        try
-        {
-            var auditLog = context.RequestServices.GetRequiredService<IAuditLogService>();
-            await auditLog.WriteAsync(
-                action: "API_REQUEST",
-                entityName: "Endpoint",
-                entityId: context.Request.Path.Value ?? "/api/unknown",
-                reason: $"{context.Request.Method} {context.Response.StatusCode} {stopwatch.ElapsedMilliseconds}ms",
-                after: new
-                {
-                    method = context.Request.Method,
-                    path = context.Request.Path.Value,
-                    query = context.Request.QueryString.Value ?? string.Empty,
-                    statusCode = context.Response.StatusCode,
-                    elapsedMs = stopwatch.ElapsedMilliseconds,
-                    username
-                },
-                actorUserId: actorUserId);
-        }
-        catch (Exception logEx)
-        {
-            logger.LogWarning(logEx, "Không thể ghi API_REQUEST vào AuditLog.");
-        }
     }
     catch (Exception ex)
     {
@@ -245,31 +234,6 @@ app.Use(async (context, next) =>
             stopwatch.ElapsedMilliseconds,
             userId,
             username);
-
-        try
-        {
-            var auditLog = context.RequestServices.GetRequiredService<IAuditLogService>();
-            await auditLog.WriteAsync(
-                action: "API_EXCEPTION",
-                entityName: "Endpoint",
-                entityId: context.Request.Path.Value ?? "/api/unknown",
-                reason: ex.Message,
-                after: new
-                {
-                    method = context.Request.Method,
-                    path = context.Request.Path.Value,
-                    query = context.Request.QueryString.Value ?? string.Empty,
-                    elapsedMs = stopwatch.ElapsedMilliseconds,
-                    username,
-                    exceptionType = ex.GetType().Name
-                },
-                actorUserId: actorUserId);
-        }
-        catch (Exception logEx)
-        {
-            logger.LogWarning(logEx, "Không thể ghi API_EXCEPTION vào AuditLog.");
-        }
-
         throw;
     }
 });

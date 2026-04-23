@@ -1,7 +1,6 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Dtos;
 using HotelManagement.Api.Models;
-using HotelManagement.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,23 +10,128 @@ namespace HotelManagement.Api.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ServiceOrdersController(HotelDbContext dbContext, IAuditLogService auditLog) : ControllerBase
+public class ServiceOrdersController(HotelDbContext dbContext) : ControllerBase
 {
-    [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] long? stayId, [FromQuery] long? reservationId)
+    private sealed class ServiceOrderView
     {
-        var query = dbContext.ServiceOrders.Include(o => o.Stay).AsQueryable();
+        public long ServiceOrderId { get; set; }
+        public long StayId { get; set; }
+        public long? ReservationId { get; set; }
+        public int? RoomId { get; set; }
+        public string? RoomNumber { get; set; }
+        public string ServiceCode { get; set; } = string.Empty;
+        public string? ServiceName { get; set; }
+        public string? Description { get; set; }
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public string StatusCode { get; set; } = "ACTIVE";
+        public string? CancelReason { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] long? stayId,
+        [FromQuery] long? reservationId,
+        [FromQuery] string? search,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
+    {
+        var query =
+            from o in dbContext.ServiceOrders
+            join s in dbContext.Stays on o.StayId equals s.StayId into stayJoin
+            from s in stayJoin.DefaultIfEmpty()
+            join r in dbContext.Rooms on s.RoomId equals r.RoomId into roomJoin
+            from r in roomJoin.DefaultIfEmpty()
+            join hs in dbContext.HotelServices
+                on new { HotelId = s.HotelId, o.ServiceCode } equals new { hs.HotelId, hs.ServiceCode } into serviceJoin
+            from hs in serviceJoin.DefaultIfEmpty()
+            select new ServiceOrderView
+            {
+                ServiceOrderId = o.ServiceOrderId,
+                StayId = o.StayId,
+                ReservationId = s.ReservationId,
+                RoomId = s.RoomId,
+                RoomNumber = r != null ? r.RoomNumber : null,
+                ServiceCode = o.ServiceCode,
+                ServiceName = hs != null ? hs.ServiceName : null,
+                Description = o.Description,
+                Quantity = o.Quantity,
+                UnitPrice = o.UnitPrice,
+                StatusCode = o.StatusCode,
+                CancelReason = o.CancelReason,
+                CreatedAt = o.CreatedAt
+            };
 
         if (stayId.HasValue)
             query = query.Where(o => o.StayId == stayId.Value);
         if (reservationId.HasValue)
         {
+            query = query.Where(o => o.ReservationId == reservationId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
             query = query.Where(o =>
-                dbContext.Stays.Any(s => s.StayId == o.StayId && s.ReservationId == reservationId.Value));
+                o.ServiceCode.Contains(s) ||
+                (o.Description != null && o.Description.Contains(s)));
         }
 
-        var list = await query.OrderByDescending(o => o.ServiceOrderId).ToListAsync();
-        return Ok(list);
+        query = query.OrderByDescending(o => o.ServiceOrderId);
+
+        var usePaging = page.HasValue || pageSize.HasValue;
+        if (!usePaging)
+        {
+            var list = await query.ToListAsync();
+            return Ok(list);
+        }
+
+        var currentPage = Math.Max(1, page ?? 1);
+        var currentPageSize = Math.Clamp(pageSize ?? 20, 1, 200);
+        var totalItems = await query.CountAsync();
+        var totalPages = totalItems == 0 ? 1 : (int)Math.Ceiling(totalItems / (double)currentPageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var items = await query
+            .Skip((currentPage - 1) * currentPageSize)
+            .Take(currentPageSize)
+            .ToListAsync();
+
+        return Ok(new { items, page = currentPage, pageSize = currentPageSize, totalItems, totalPages });
+    }
+
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> GetById(long id)
+    {
+        var order = await (
+            from o in dbContext.ServiceOrders
+            where o.ServiceOrderId == id
+            join s in dbContext.Stays on o.StayId equals s.StayId into stayJoin
+            from s in stayJoin.DefaultIfEmpty()
+            join r in dbContext.Rooms on s.RoomId equals r.RoomId into roomJoin
+            from r in roomJoin.DefaultIfEmpty()
+            join hs in dbContext.HotelServices
+                on new { HotelId = s.HotelId, o.ServiceCode } equals new { hs.HotelId, hs.ServiceCode } into serviceJoin
+            from hs in serviceJoin.DefaultIfEmpty()
+            select new ServiceOrderView
+            {
+                ServiceOrderId = o.ServiceOrderId,
+                StayId = o.StayId,
+                ReservationId = s.ReservationId,
+                RoomId = s.RoomId,
+                RoomNumber = r != null ? r.RoomNumber : null,
+                ServiceCode = o.ServiceCode,
+                ServiceName = hs != null ? hs.ServiceName : null,
+                Description = o.Description,
+                Quantity = o.Quantity,
+                UnitPrice = o.UnitPrice,
+                StatusCode = o.StatusCode,
+                CancelReason = o.CancelReason,
+                CreatedAt = o.CreatedAt
+            }).FirstOrDefaultAsync();
+        if (order is null)
+            return NotFound(new { message = "Không tìm thấy dịch vụ sử dụng." });
+        return Ok(order);
     }
 
     [HttpPost]
@@ -83,19 +187,6 @@ public class ServiceOrdersController(HotelDbContext dbContext, IAuditLogService 
         dbContext.ServiceOrders.Add(order);
         await dbContext.SaveChangesAsync();
 
-        await auditLog.WriteAsync(
-            "SERVICE_ORDER_CREATE",
-            "ServiceOrder",
-            order.ServiceOrderId.ToString(),
-            after: new
-            {
-                order.StayId,
-                order.ServiceCode,
-                order.Description,
-                order.Quantity,
-                order.UnitPrice
-            });
-
         return Ok(order);
     }
 
@@ -114,13 +205,6 @@ public class ServiceOrdersController(HotelDbContext dbContext, IAuditLogService 
         order.CancelReason = string.IsNullOrWhiteSpace(request?.Reason) ? null : request!.Reason.Trim();
         order.UpdatedAt = DateTime.UtcNow;
         await dbContext.SaveChangesAsync();
-
-        await auditLog.WriteAsync(
-            "SERVICE_ORDER_CANCEL",
-            "ServiceOrder",
-            order.ServiceOrderId.ToString(),
-            before: new { StatusCode = "ACTIVE" },
-            after: new { order.StatusCode, order.CancelReason });
 
         return Ok(order);
     }
