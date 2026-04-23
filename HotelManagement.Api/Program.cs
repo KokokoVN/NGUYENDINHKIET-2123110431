@@ -116,6 +116,28 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE [dbo].[Customer] ADD [DateOfBirth] DATE NULL;
         IF COL_LENGTH('dbo.Customer', 'Nationality') IS NULL
             ALTER TABLE [dbo].[Customer] ADD [Nationality] NVARCHAR(100) NULL;
+
+        /* Backward-compatible sync for auth schema */
+        IF COL_LENGTH('dbo.AppUser', 'Password') IS NULL
+        BEGIN
+            ALTER TABLE [dbo].[AppUser] ADD [Password] NVARCHAR(300) NULL;
+        END
+
+        /* SQL Server compiles statements even if IF branch isn't taken.
+           Use dynamic SQL to reference optional columns safely. */
+        IF COL_LENGTH('dbo.AppUser', 'PasswordHash') IS NOT NULL
+        BEGIN
+            EXEC(N'UPDATE [dbo].[AppUser] SET [Password] = ISNULL([PasswordHash], N'''') WHERE [Password] IS NULL;');
+        END
+        ELSE
+        BEGIN
+            EXEC(N'UPDATE [dbo].[AppUser] SET [Password] = N'''' WHERE [Password] IS NULL;');
+        END
+
+        IF COL_LENGTH('dbo.AppUser', 'Password') IS NOT NULL
+        BEGIN
+            ALTER TABLE [dbo].[AppUser] ALTER COLUMN [Password] NVARCHAR(300) NOT NULL;
+        END
     """);
 }
 

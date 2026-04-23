@@ -22,7 +22,7 @@ public class AuthController(
     {
         var username = request.Username.Trim();
         var user = await dbContext.AppUsers.FirstOrDefaultAsync(x => x.Username == username && x.IsActive);
-        if (user is null || !passwordService.Verify(request.Password, user.PasswordHash))
+        if (user is null || !passwordService.Verify(request.Password, user.Password))
         {
             return Unauthorized(new { message = "Ten dang nhap hoac mat khau khong dung." });
         }

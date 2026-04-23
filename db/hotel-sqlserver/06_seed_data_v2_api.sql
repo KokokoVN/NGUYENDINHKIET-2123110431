@@ -23,13 +23,13 @@ BEGIN TRY
   /* Admin user */
   IF NOT EXISTS (SELECT 1 FROM dbo.AppUser WHERE Username = N'admin')
   BEGIN
-    INSERT INTO dbo.AppUser(Username, PasswordHash, FullName, Email, Phone, IsActive)
+    INSERT INTO dbo.AppUser(Username, Password, FullName, Email, Phone, IsActive)
     VALUES (N'admin', N'8D969EEF6ECAD3C29A3A629280E686CF0C3F5D5A86AFF3CA12020C923ADC6C92', N'Quản trị', N'admin@hotel.local', N'0900000000', 1);
   END
   ELSE
   BEGIN
     UPDATE dbo.AppUser
-    SET PasswordHash = N'8D969EEF6ECAD3C29A3A629280E686CF0C3F5D5A86AFF3CA12020C923ADC6C92'
+    SET Password = N'8D969EEF6ECAD3C29A3A629280E686CF0C3F5D5A86AFF3CA12020C923ADC6C92'
     WHERE Username = N'admin';
   END
 

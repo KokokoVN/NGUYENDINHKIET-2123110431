@@ -4,8 +4,8 @@ namespace HotelManagement.Api.Dtos;
 
 public class UpdateCustomerRequest
 {
-    [Required]
-    [RegularExpression("^(INDIVIDUAL|COMPANY|AGENCY)$", ErrorMessage = "CustomerType phải là INDIVIDUAL, COMPANY hoặc AGENCY.")]
+    [Required(ErrorMessage = "CustomerType là bắt buộc.")]
+    [RegularExpression("^(INDIVIDUAL|COMPANY|AGENCY)$", ErrorMessage = "CustomerType chỉ được là INDIVIDUAL, COMPANY hoặc AGENCY.")]
     public string CustomerType { get; set; } = "INDIVIDUAL";
 
     [MaxLength(200)]

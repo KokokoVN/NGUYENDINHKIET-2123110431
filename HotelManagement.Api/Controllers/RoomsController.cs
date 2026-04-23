@@ -12,6 +12,53 @@ namespace HotelManagement.Api.Controllers;
 [Route("api/[controller]")]
 public class RoomsController(HotelDbContext dbContext) : ControllerBase
 {
+    /// <summary>
+    /// Danh sách phòng trống theo khoảng ngày (checkInDate/checkOutDate).
+    /// Mặc định chỉ lấy phòng đang hoạt động và không ở trạng thái bảo trì/ngưng phục vụ.
+    /// </summary>
+    [HttpGet("available")]
+    public async Task<IActionResult> GetAvailable(
+        [FromQuery] int? hotelId,
+        [FromQuery] int? roomTypeId,
+        [FromQuery] DateOnly checkInDate,
+        [FromQuery] DateOnly checkOutDate,
+        [FromQuery] int? adults = null,
+        [FromQuery] int? children = null)
+    {
+        if (checkInDate >= checkOutDate)
+            return BadRequest(new { message = "Ngày check-out phải lớn hơn ngày check-in." });
+
+        var totalGuests = (adults ?? 0) + (children ?? 0);
+
+        var roomsQuery = dbContext.Rooms
+            .Include(r => r.RoomType)
+            .Where(r => r.IsActive)
+            .Where(r => r.StatusCode != "OUT_OF_SERVICE" && r.StatusCode != "MAINTENANCE");
+
+        if (hotelId.HasValue)
+            roomsQuery = roomsQuery.Where(r => r.HotelId == hotelId.Value);
+
+        if (roomTypeId.HasValue)
+            roomsQuery = roomsQuery.Where(r => r.RoomTypeId == roomTypeId.Value);
+
+        if (totalGuests > 0)
+            roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.IsActive && r.RoomType.Capacity >= totalGuests);
+        else
+            roomsQuery = roomsQuery.Where(r => r.RoomType != null && r.RoomType.IsActive);
+
+        // Loại các phòng có booking overlap trong khoảng thời gian (CONFIRMED/CHECKED_IN)
+        var available = await roomsQuery
+            .Where(r => !dbContext.Bookings.Any(b =>
+                b.RoomId == r.RoomId &&
+                (b.StatusCode == "CONFIRMED" || b.StatusCode == "CHECKED_IN") &&
+                checkInDate < b.CheckOutDate &&
+                checkOutDate > b.CheckInDate))
+            .OrderBy(r => r.RoomNumber)
+            .ToListAsync();
+
+        return Ok(available);
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? roomNumber,

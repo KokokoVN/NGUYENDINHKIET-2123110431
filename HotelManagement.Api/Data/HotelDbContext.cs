@@ -22,6 +22,7 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AppUser>().ToTable("AppUser", "dbo").HasKey(x => x.UserId);
+        modelBuilder.Entity<AppUser>().Property(x => x.Password).HasColumnName("Password");
         modelBuilder.Entity<AppRole>().ToTable("AppRole", "dbo").HasKey(x => x.RoleId);
         modelBuilder.Entity<AppUserRole>().ToTable("AppUserRole", "dbo").HasKey(x => new { x.UserId, x.RoleId });
 
@@ -64,6 +65,17 @@ public class HotelDbContext(DbContextOptions<HotelDbContext> options) : DbContex
 
         modelBuilder.Entity<Payment>().ToTable("Payment", "dbo").HasKey(x => x.PaymentId);
         modelBuilder.Entity<HotelServiceItem>().ToTable("HotelService", "dbo").HasKey(x => x.HotelServiceId);
+
+        // Avoid silent decimal truncation (SQL Server defaults may differ by provider/version)
+        modelBuilder.Entity<Booking>().Property(x => x.RatePerNight).HasPrecision(18, 2);
+        modelBuilder.Entity<HotelServiceItem>().Property(x => x.DefaultUnitPrice).HasPrecision(18, 2);
+        modelBuilder.Entity<Invoice>().Property(x => x.RoomAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<Invoice>().Property(x => x.ServiceAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<Invoice>().Property(x => x.TotalAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<Payment>().Property(x => x.Amount).HasPrecision(18, 2);
+        modelBuilder.Entity<RoomType>().Property(x => x.BaseRate).HasPrecision(18, 2);
+        modelBuilder.Entity<ServiceOrder>().Property(x => x.UnitPrice).HasPrecision(18, 2);
+        modelBuilder.Entity<Stay>().Property(x => x.DepositAmount).HasPrecision(18, 2);
 
     }
 }

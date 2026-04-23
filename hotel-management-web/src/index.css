@@ -1181,6 +1181,20 @@ form.card h3 {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
 
+/* Rooms page: slightly larger typography for readability */
+.rooms-page .table {
+  font-size: 0.95rem;
+}
+
+.rooms-page .table th {
+  font-size: 0.72rem;
+}
+
+.rooms-page .table td:nth-child(2) strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
 /* Bảng dài: cuộn trong khung, header dính */
 .table-wrap--tall {
   max-height: min(65vh, 520px);

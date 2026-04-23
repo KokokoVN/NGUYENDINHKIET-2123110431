@@ -5,8 +5,8 @@ namespace HotelManagement.Api.Dtos;
 
 public class CreateCustomerRequest
 {
-    [Required]
-    [RegularExpression("^(INDIVIDUAL|COMPANY|AGENCY)$", ErrorMessage = "CustomerType phải là INDIVIDUAL, COMPANY hoặc AGENCY.")]
+    [Required(ErrorMessage = "CustomerType là bắt buộc.")]
+    [RegularExpression("^INDIVIDUAL$", ErrorMessage = "Chỉ cho phép tạo khách cá nhân (CustomerType phải là INDIVIDUAL).")]
     public string CustomerType { get; set; } = "INDIVIDUAL";
 
     [MaxLength(200)]
@@ -38,7 +38,7 @@ public class CreateCustomerRequest
 
     public Customer ToEntity()
     {
-        var t = CustomerType.Trim().ToUpperInvariant();
+        var t = "INDIVIDUAL";
         return new Customer
         {
             CustomerType = t,

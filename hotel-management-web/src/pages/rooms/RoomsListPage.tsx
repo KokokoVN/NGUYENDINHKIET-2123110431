@@ -134,7 +134,7 @@ export function RoomsListPage() {
   }
 
   return (
-    <div>
+    <div className="rooms-page">
       <PageHeader
         title="Phòng"
         actions={

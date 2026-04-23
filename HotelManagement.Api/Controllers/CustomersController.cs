@@ -137,7 +137,16 @@ public class CustomersController(
     [Authorize(Roles = "ADMIN,RECEPTION")]
     public async Task<IActionResult> Create([FromBody] CreateCustomerRequest request)
     {
-        var err = ValidateCustomerProfile(request.CustomerType, request.FullName, request.CompanyName);
+        if (!string.Equals(request.CustomerType?.Trim(), "INDIVIDUAL", StringComparison.OrdinalIgnoreCase))
+            ModelState.AddModelError(nameof(request.CustomerType), "Chỉ cho phép tạo khách cá nhân (CustomerType phải là INDIVIDUAL).");
+
+        if (string.IsNullOrWhiteSpace(request.FullName))
+            ModelState.AddModelError(nameof(request.FullName), "Khách cá nhân cần có họ tên (fullName).");
+
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
+        var err = ValidateCustomerProfile("INDIVIDUAL", request.FullName, null);
         if (err != null)
             return BadRequest(new { message = err });
 
@@ -152,6 +161,19 @@ public class CustomersController(
     [Authorize(Roles = "ADMIN,RECEPTION")]
     public async Task<IActionResult> Update(long id, [FromBody] UpdateCustomerRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.CustomerType))
+            ModelState.AddModelError(nameof(request.CustomerType), "CustomerType là bắt buộc.");
+        else if (string.Equals(request.CustomerType.Trim(), "INDIVIDUAL", StringComparison.OrdinalIgnoreCase)
+                 && string.IsNullOrWhiteSpace(request.FullName))
+            ModelState.AddModelError(nameof(request.FullName), "Khách cá nhân cần có họ tên (fullName).");
+        else if ((string.Equals(request.CustomerType.Trim(), "COMPANY", StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(request.CustomerType.Trim(), "AGENCY", StringComparison.OrdinalIgnoreCase))
+                 && string.IsNullOrWhiteSpace(request.CompanyName))
+            ModelState.AddModelError(nameof(request.CompanyName), "Khách doanh nghiệp/đại lý cần có tên công ty (companyName).");
+
+        if (!ModelState.IsValid)
+            return ValidationProblem(ModelState);
+
         var customer = await dbContext.Customers
             .FirstOrDefaultAsync(c => c.CustomerId == id && c.DeletedAt == null);
         if (customer is null)

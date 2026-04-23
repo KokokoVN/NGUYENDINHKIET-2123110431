@@ -37,7 +37,7 @@ CREATE TABLE [dbo].[AppUser]
 (
     [UserId]        INT IDENTITY(1,1) NOT NULL,
     [Username]      NVARCHAR(100) NOT NULL,
-    [PasswordHash]  NVARCHAR(300) NOT NULL,
+    [Password]      NVARCHAR(300) NOT NULL,
     [FullName]      NVARCHAR(200) NULL,
     [Email]         NVARCHAR(200) NULL,
     [Phone]         NVARCHAR(50) NULL,
