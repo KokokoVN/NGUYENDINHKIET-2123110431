@@ -66,14 +66,40 @@ export function InvoiceShowPage() {
     return <span className="badge badge--muted">{m}</span>;
   }
 
+  async function downloadPdf() {
+    if (!detail?.id) return;
+    try {
+      setError('');
+      const response = await api.get(`/api/invoices/${detail.id}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `invoice-${detail.id}.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(apiMessage(e));
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Chi tiết hóa đơn"
         actions={
-          <Link to="/invoices" className="hm-btn hm-btn--ghost" style={{ textDecoration: 'none' }}>
-            ← Danh sách
-          </Link>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {detail ? (
+              <button type="button" className="hm-btn hm-btn--primary" onClick={() => void downloadPdf()}>
+                Xuất PDF
+              </button>
+            ) : null}
+            <Link to="/invoices" className="hm-btn hm-btn--ghost" style={{ textDecoration: 'none' }}>
+              ← Danh sách
+            </Link>
+          </div>
         }
       />
       {error && <div className="alert alert--error">{error}</div>}

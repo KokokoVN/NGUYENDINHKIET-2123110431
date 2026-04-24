@@ -209,6 +209,38 @@ h3 {
   gap: 1rem;
 }
 
+.form-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-section {
+  padding: 1.1rem 1.2rem;
+}
+
+.form-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.9rem;
+}
+
+.form-section__head h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
 .form-stack label,
 .form-inline label {
   display: flex;

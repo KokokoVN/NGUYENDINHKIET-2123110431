@@ -172,6 +172,16 @@ public class ServiceOrdersController(HotelDbContext dbContext) : ControllerBase
         if (string.IsNullOrEmpty(code))
             return BadRequest(new { message = "serviceCode không hợp lệ." });
 
+        // Ensure service belongs to this hotel (catalog is per-hotel)
+        var serviceOk = await dbContext.HotelServices.AnyAsync(hs =>
+            hs.HotelId == stay.HotelId &&
+            hs.ServiceCode == code &&
+            hs.IsActive);
+        if (!serviceOk)
+        {
+            return BadRequest(new { message = "Dịch vụ không tồn tại trong danh mục của khách sạn này (hoặc đã ngưng hoạt động)." });
+        }
+
         var order = new ServiceOrder
         {
             StayId = stay.StayId,
@@ -188,6 +198,82 @@ public class ServiceOrdersController(HotelDbContext dbContext) : ControllerBase
         await dbContext.SaveChangesAsync();
 
         return Ok(order);
+    }
+
+    [HttpPost("bulk")]
+    [Authorize(Roles = "ADMIN,RECEPTION")]
+    public async Task<IActionResult> CreateBulk([FromBody] CreateServiceOrdersBulkRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var stay = await dbContext.Stays.FirstOrDefaultAsync(s =>
+            s.StayId == request.StayId && s.StatusCode == "IN_HOUSE");
+        if (stay is null)
+        {
+            return BadRequest(new
+            {
+                message = "Không tìm thấy lưu trú đang ở (IN_HOUSE). Chỉ thêm dịch vụ sau khi khách đã check-in."
+            });
+        }
+
+        var now = DateTime.UtcNow;
+        var normalized = request.Items
+            .Select((x, idx) => new
+            {
+                idx,
+                code = (x.ServiceCode ?? string.Empty).Trim().Replace(' ', '_').ToUpperInvariant(),
+                desc = string.IsNullOrWhiteSpace(x.Description) ? null : x.Description!.Trim(),
+                qty = x.Quantity,
+                price = x.UnitPrice
+            })
+            .ToList();
+
+        if (normalized.Any(x => string.IsNullOrEmpty(x.code)))
+            return BadRequest(new { message = "Có dịch vụ có serviceCode không hợp lệ." });
+
+        var codes = normalized.Select(x => x.code).Distinct().ToList();
+        var activeCodes = await dbContext.HotelServices
+            .Where(hs => hs.HotelId == stay.HotelId && hs.IsActive && codes.Contains(hs.ServiceCode))
+            .Select(hs => hs.ServiceCode)
+            .ToListAsync();
+
+        var missing = codes.Except(activeCodes).ToList();
+        if (missing.Count > 0)
+        {
+            return BadRequest(new
+            {
+                message = "Có dịch vụ không thuộc danh mục của khách sạn này (hoặc đã ngưng hoạt động).",
+                missingServiceCodes = missing
+            });
+        }
+
+        var orders = normalized.Select(x => new ServiceOrder
+        {
+            StayId = stay.StayId,
+            ServiceCode = x.code,
+            Description = x.desc,
+            Quantity = x.qty,
+            UnitPrice = x.price,
+            StatusCode = "ACTIVE",
+            CreatedAt = now,
+            UpdatedAt = now
+        }).ToList();
+
+        await using var tx = await dbContext.Database.BeginTransactionAsync();
+        dbContext.ServiceOrders.AddRange(orders);
+        await dbContext.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        return Ok(new
+        {
+            message = "Đã thêm nhiều dịch vụ.",
+            data = new
+            {
+                count = orders.Count,
+                serviceOrderIds = orders.Select(o => o.ServiceOrderId).ToList()
+            }
+        });
     }
 
     [HttpPut("{id:long}/cancel")]

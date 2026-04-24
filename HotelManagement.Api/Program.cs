@@ -1,6 +1,7 @@
 using HotelManagement.Api.Data;
 using HotelManagement.Api.Filters;
 using HotelManagement.Api.Services;
+using QuestPDF.Infrastructure;
 using System.Diagnostics;
 using System.Security.Claims;
 using System.Text;
@@ -12,6 +13,7 @@ using Microsoft.OpenApi;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+QuestPDF.Settings.License = LicenseType.Community;
 
 builder.Services.AddControllers(options =>
 {

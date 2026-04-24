@@ -13,6 +13,7 @@ type Hotel = {
   email?: string | null;
   isActive: boolean;
 };
+type CascadeChildrenInfo = { rooms?: number; roomTypes?: number; services?: number };
 type Paged<T> = { items: T[]; page: number; pageSize: number; totalItems: number; totalPages: number };
 
 export function HotelsListPage() {
@@ -25,6 +26,7 @@ export function HotelsListPage() {
   const [email, setEmail] = useState('');
 
   const [deleteTarget, setDeleteTarget] = useState<Hotel | null>(null);
+  const [cascadeTarget, setCascadeTarget] = useState<{ hotel: Hotel; children: CascadeChildrenInfo } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -73,6 +75,28 @@ export function HotelsListPage() {
       setDeleteTarget(null);
       await load();
       flashSuccess('Đã ngưng hoạt động khách sạn.');
+    } catch (err) {
+      const responseData = (err as { response?: { data?: { requiresConfirmation?: boolean; activeChildren?: CascadeChildrenInfo } } }).response?.data;
+      if (responseData?.requiresConfirmation) {
+        setDeleteTarget(null);
+        setCascadeTarget({ hotel: deleteTarget, children: responseData.activeChildren ?? {} });
+        return;
+      }
+      setError(apiMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmCascadeDelete() {
+    if (!cascadeTarget) return;
+    try {
+      setDeleting(true);
+      setError('');
+      await api.delete(`/api/hotels/${cascadeTarget.hotel.hotelId}`, { params: { cascadeChildren: true } });
+      setCascadeTarget(null);
+      await load();
+      flashSuccess('Đã ngưng hoạt động khách sạn và toàn bộ dữ liệu con.');
     } catch (err) {
       setError(apiMessage(err));
     } finally {
@@ -218,6 +242,21 @@ export function HotelsListPage() {
         loading={deleting}
         onCancel={() => !deleting && setDeleteTarget(null)}
         onConfirm={confirmDelete}
+      />
+
+      <ConfirmDialog
+        open={!!cascadeTarget}
+        title="Xác nhận ngưng toàn bộ dữ liệu con?"
+        message={
+          cascadeTarget
+            ? `Khách sạn «${cascadeTarget.hotel.hotelName}» còn ${cascadeTarget.children.rooms ?? 0} phòng, ${cascadeTarget.children.roomTypes ?? 0} loại phòng, ${cascadeTarget.children.services ?? 0} dịch vụ đang hoạt động. Bạn có muốn ngưng tất cả không?`
+            : ''
+        }
+        confirmLabel="Ngưng tất cả"
+        danger
+        loading={deleting}
+        onCancel={() => !deleting && setCascadeTarget(null)}
+        onConfirm={confirmCascadeDelete}
       />
     </div>
   );

@@ -28,7 +28,7 @@ export function InvoicesListPage() {
   const [totalPages, setTotalPages] = useState(1);
 
   const load = useCallback(async (targetPage = 1) => {
-    const params: Record<string, unknown> = { page: targetPage, pageSize };
+    const params: Record<string, unknown> = { page: targetPage, pageSize, paidSuccessOnly: true };
     if (search.trim()) params.search = search.trim();
     const { data } = await api.get<Paged<Invoice>>('/api/invoices', { params });
     setList(data.items);

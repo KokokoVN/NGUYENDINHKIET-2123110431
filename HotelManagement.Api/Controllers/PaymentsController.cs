@@ -21,7 +21,9 @@ public class PaymentsController(HotelDbContext dbContext) : ControllerBase
         [FromQuery] int? page = null,
         [FromQuery] int? pageSize = null)
     {
-        var query = dbContext.Payments.AsQueryable();
+        var query = dbContext.Payments
+            .AsNoTracking()
+            .AsQueryable();
         if (stayId.HasValue)
             query = query.Where(p => p.StayId == stayId.Value);
         if (reservationId.HasValue)
@@ -73,7 +75,9 @@ public class PaymentsController(HotelDbContext dbContext) : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id)
     {
-        var p = await dbContext.Payments.FirstOrDefaultAsync(x => x.PaymentId == id);
+        var p = await dbContext.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PaymentId == id);
         if (p is null)
             return NotFound(new { message = "Không tìm thấy thanh toán." });
         return Ok(new
@@ -90,30 +94,52 @@ public class PaymentsController(HotelDbContext dbContext) : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(new { message = "Dữ liệu thanh toán không hợp lệ." });
 
-        if (request.StayId.HasValue == request.ReservationId.HasValue)
-            return BadRequest(new { message = "Cần gửi đúng một trong hai: stayId hoặc reservationId." });
+        if (!request.StayId.HasValue || request.StayId.Value <= 0)
+            return BadRequest(new { message = "Cần gửi stayId hợp lệ để thanh toán." });
 
-        if (request.StayId.HasValue)
-        {
-            var ok = await dbContext.Stays.AnyAsync(s => s.StayId == request.StayId.Value);
-            if (!ok)
-                return BadRequest(new { message = "Stay không tồn tại." });
-        }
-        else
-        {
-            var ok = await dbContext.Bookings.AnyAsync(b => b.ReservationId == request.ReservationId!.Value);
-            if (!ok)
-                return BadRequest(new { message = "Đặt phòng không tồn tại." });
-        }
+        var stay = await dbContext.Stays
+            .FirstOrDefaultAsync(s => s.StayId == request.StayId.Value);
+        if (stay is null)
+            return BadRequest(new { message = "Stay không tồn tại." });
+
+        if (stay.ReservationId is null)
+            return BadRequest(new { message = "Stay chưa gắn đặt phòng, không thể thanh toán." });
+
+        if (stay.StatusCode != "CHECKED_OUT" || !stay.CheckOutAt.HasValue)
+            return BadRequest(new { message = "Chỉ thanh toán khi stay đã check-out." });
+
+        var booking = await dbContext.Bookings
+            .FirstOrDefaultAsync(b => b.ReservationId == stay.ReservationId.Value);
+        if (booking is null)
+            return BadRequest(new { message = "Đặt phòng của stay không tồn tại." });
+
+        var duplicatedPaid = await dbContext.Payments
+            .AnyAsync(p => p.StayId == stay.StayId && p.StatusCode == "PAID");
+        if (duplicatedPaid)
+            return BadRequest(new { message = "Stay này đã được thanh toán thành công." });
+
+        var nightsStayed = Math.Max(0,
+            DateOnly.FromDateTime(stay.CheckOutAt.Value.Date).DayNumber -
+            DateOnly.FromDateTime(stay.CheckInAt.Date).DayNumber);
+        if (nightsStayed == 0)
+            nightsStayed = Math.Max(0, booking.CheckOutDate.DayNumber - booking.CheckInDate.DayNumber);
+
+        var roomAmount = nightsStayed * booking.RatePerNight;
+        var serviceAmount = await dbContext.ServiceOrders
+            .Where(o => o.StayId == stay.StayId && o.StatusCode == "ACTIVE")
+            .SumAsync(o => (decimal?)(o.Quantity * o.UnitPrice)) ?? 0m;
+        var totalAmount = roomAmount + serviceAmount;
+        if (totalAmount <= 0)
+            return BadRequest(new { message = "Không thể tạo thanh toán với số tiền bằng 0." });
 
         var now = DateTime.UtcNow;
         var payment = new Payment
         {
-            StayId = request.StayId,
-            ReservationId = request.ReservationId,
-            PaymentType = request.PaymentType.Trim().ToUpperInvariant(),
-            MethodCode = request.MethodCode.Trim().ToUpperInvariant(),
-            Amount = request.Amount,
+            StayId = stay.StayId,
+            ReservationId = stay.ReservationId.Value,
+            PaymentType = "CHARGE",
+            MethodCode = "CASH",
+            Amount = totalAmount,
             StatusCode = "PAID",
             ReferenceNo = string.IsNullOrWhiteSpace(request.ReferenceNo) ? null : request.ReferenceNo.Trim(),
             Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),

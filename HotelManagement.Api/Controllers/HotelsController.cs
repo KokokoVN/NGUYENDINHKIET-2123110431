@@ -153,16 +153,37 @@ public class HotelsController(HotelDbContext dbContext) : ControllerBase
     /// <summary>Xóa mềm: IsActive = false (không xóa dòng DB).</summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN,RECEPTION")]
-    public async Task<IActionResult> SoftDelete(int id)
+    public async Task<IActionResult> SoftDelete(int id, [FromQuery] bool cascadeChildren = false)
     {
         var hotel = await dbContext.Hotels.FirstOrDefaultAsync(h => h.HotelId == id && h.IsActive);
         if (hotel is null)
             return NotFound(new { message = "Không tìm thấy khách sạn để ngưng hoạt động." });
 
-        var hasActiveChildren = await dbContext.Rooms.AnyAsync(r => r.HotelId == id && r.IsActive)
-            || await dbContext.RoomTypes.AnyAsync(rt => rt.HotelId == id && rt.IsActive);
-        if (hasActiveChildren)
-            return BadRequest(new { message = "Không thể ngưng hoạt động khách sạn khi vẫn còn phòng/loại phòng đang hoạt động." });
+        var activeRooms = await dbContext.Rooms
+            .Where(r => r.HotelId == id && r.IsActive)
+            .ToListAsync();
+        var activeRoomTypes = await dbContext.RoomTypes
+            .Where(rt => rt.HotelId == id && rt.IsActive)
+            .ToListAsync();
+        var activeServices = await dbContext.HotelServices
+            .Where(s => s.HotelId == id && s.IsActive)
+            .ToListAsync();
+
+        var hasActiveChildren = activeRooms.Count > 0 || activeRoomTypes.Count > 0 || activeServices.Count > 0;
+        if (hasActiveChildren && !cascadeChildren)
+        {
+            return Conflict(new
+            {
+                message = "Khách sạn đang có dữ liệu con hoạt động. Xác nhận để ngưng toàn bộ dữ liệu con.",
+                requiresConfirmation = true,
+                activeChildren = new
+                {
+                    rooms = activeRooms.Count,
+                    roomTypes = activeRoomTypes.Count,
+                    services = activeServices.Count
+                }
+            });
+        }
 
         var before = new
         {
@@ -174,10 +195,33 @@ public class HotelsController(HotelDbContext dbContext) : ControllerBase
             hotel.IsActive
         };
 
+        if (cascadeChildren)
+        {
+            foreach (var room in activeRooms)
+            {
+                room.IsActive = false;
+                room.StatusCode = "OUT_OF_SERVICE";
+            }
+
+            foreach (var roomType in activeRoomTypes)
+                roomType.IsActive = false;
+
+            foreach (var service in activeServices)
+            {
+                service.IsActive = false;
+                service.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
         hotel.IsActive = false;
         await dbContext.SaveChangesAsync();
 
-        return Ok(new { message = "Ngưng hoạt động khách sạn thành công." });
+        return Ok(new
+        {
+            message = cascadeChildren
+                ? "Ngưng hoạt động khách sạn và toàn bộ dữ liệu con thành công."
+                : "Ngưng hoạt động khách sạn thành công."
+        });
     }
 
     [HttpPut("{id:int}/restore")]

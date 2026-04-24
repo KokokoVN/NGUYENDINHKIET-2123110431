@@ -154,6 +154,7 @@ export function CustomerNewPage() {
     <div>
       <PageHeader
         title="Thêm khách hàng"
+        subtitle="Tạo hồ sơ khách hàng đầy đủ thông tin liên hệ và giấy tờ để hỗ trợ đặt phòng nhanh hơn."
         actions={
           <Link to="/customers" className="hm-btn hm-btn--ghost" style={{ textDecoration: 'none' }}>
             ← Danh sách
@@ -162,127 +163,151 @@ export function CustomerNewPage() {
       />
       {error && <div className="alert alert--error">{error}</div>}
 
-      <form className="card form-stack" onSubmit={onSubmit}>
-        <label>
-          Loại
-          <select
-            value={customerType}
-            onChange={(e) => {
-              const next = e.target.value;
-              setCustomerType(next);
-              setFieldErrors((prev) => ({
-                ...prev,
-                fullName: next === 'INDIVIDUAL' ? validateNameLike(fullName, 'Họ tên') : '',
-                companyName: next === 'INDIVIDUAL' ? '' : validateNameLike(companyName, 'Tên công ty'),
-              }));
-            }}
-          >
-            <option value="INDIVIDUAL">Cá nhân</option>
-            <option value="COMPANY">Công ty</option>
-            <option value="AGENCY">Đại lý</option>
-          </select>
-        </label>
-        {customerType === 'INDIVIDUAL' ? (
-          <label>
-            Họ tên *
-            <input
-              value={fullName}
-              onChange={(e) => {
-                const v = e.target.value;
-                setFullName(v);
-                setFieldErrors((prev) => {
-                  const localErr = validateLocalField('fullName', v);
-                  return { ...prev, fullName: localErr || prev.fullName || '' };
-                });
-              }}
-              onBlur={() => handleBlur('fullName')}
-              required
-            />
-            {fieldErrors.fullName && <div className="field-error">{fieldErrors.fullName}</div>}
-            {!fieldErrors.fullName && fieldHints.fullName && <div className="field-success">{fieldHints.fullName}</div>}
-          </label>
-        ) : (
-          <label>
-            Tên công ty *
-            <input
-              value={companyName}
-              onChange={(e) => {
-                const v = e.target.value;
-                setCompanyName(v);
-                setFieldErrors((prev) => {
-                  const localErr = validateLocalField('companyName', v);
-                  return { ...prev, companyName: localErr || prev.companyName || '' };
-                });
-              }}
-              onBlur={() => handleBlur('companyName')}
-              required
-            />
-            {fieldErrors.companyName && <div className="field-error">{fieldErrors.companyName}</div>}
-            {!fieldErrors.companyName && fieldHints.companyName && <div className="field-success">{fieldHints.companyName}</div>}
-          </label>
-        )}
-        <div className="grid-2">
-          <label>
-            Loại giấy tờ
-            <input value={idType} onChange={(e) => setIdType(e.target.value)} placeholder="CCCD/CMND/PASSPORT" />
-          </label>
-          <label>
-            Số giấy tờ
-            <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
-          </label>
+      <form className="form-shell" onSubmit={onSubmit}>
+        <div className="card form-section">
+          <div className="form-section__head">
+            <h3>Thông tin cơ bản</h3>
+            <span className="badge badge--info">Bắt buộc</span>
+          </div>
+          <div className="form-stack">
+            <label>
+              Loại
+              <select
+                value={customerType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setCustomerType(next);
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    fullName: next === 'INDIVIDUAL' ? validateNameLike(fullName, 'Họ tên') : '',
+                    companyName: next === 'INDIVIDUAL' ? '' : validateNameLike(companyName, 'Tên công ty'),
+                  }));
+                }}
+              >
+                <option value="INDIVIDUAL">Cá nhân</option>
+              </select>
+            </label>
+            {customerType === 'INDIVIDUAL' ? (
+              <label>
+                Họ tên *
+                <input
+                  value={fullName}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFullName(v);
+                    setFieldErrors((prev) => {
+                      const localErr = validateLocalField('fullName', v);
+                      return { ...prev, fullName: localErr || prev.fullName || '' };
+                    });
+                  }}
+                  onBlur={() => handleBlur('fullName')}
+                  required
+                />
+                {fieldErrors.fullName && <div className="field-error">{fieldErrors.fullName}</div>}
+                {!fieldErrors.fullName && fieldHints.fullName && <div className="field-success">{fieldHints.fullName}</div>}
+              </label>
+            ) : (
+              <label>
+                Tên công ty *
+                <input
+                  value={companyName}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCompanyName(v);
+                    setFieldErrors((prev) => {
+                      const localErr = validateLocalField('companyName', v);
+                      return { ...prev, companyName: localErr || prev.companyName || '' };
+                    });
+                  }}
+                  onBlur={() => handleBlur('companyName')}
+                  required
+                />
+                {fieldErrors.companyName && <div className="field-error">{fieldErrors.companyName}</div>}
+                {!fieldErrors.companyName && fieldHints.companyName && <div className="field-success">{fieldHints.companyName}</div>}
+              </label>
+            )}
+          </div>
         </div>
-        <div className="grid-2">
-          <label>
-            Ngày sinh
-            <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
-          </label>
-          <label>
-            Quốc tịch
-            <input value={nationality} onChange={(e) => setNationality(e.target.value)} />
-          </label>
+
+        <div className="card form-section">
+          <div className="form-section__head">
+            <h3>Liên hệ và giấy tờ</h3>
+            <span className="badge badge--muted">Khuyến nghị</span>
+          </div>
+          <div className="form-stack">
+            <div className="grid-2">
+              <label>
+                Loại giấy tờ
+                <input value={idType} onChange={(e) => setIdType(e.target.value)} placeholder="CCCD/CMND/PASSPORT" />
+              </label>
+              <label>
+                Số giấy tờ
+                <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
+              </label>
+            </div>
+            <div className="grid-2">
+              <label>
+                Ngày sinh
+                <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+              </label>
+              <label>
+                Quốc tịch
+                <input value={nationality} onChange={(e) => setNationality(e.target.value)} />
+              </label>
+            </div>
+            <label>
+              SĐT
+              <input
+                value={phone}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPhone(v);
+                  setFieldErrors((prev) => {
+                    const localErr = validateLocalField('phone', v);
+                    return { ...prev, phone: localErr || prev.phone || '' };
+                  });
+                }}
+                onBlur={() => handleBlur('phone')}
+              />
+              {fieldErrors.phone && <div className="field-error">{fieldErrors.phone}</div>}
+              {!fieldErrors.phone && fieldHints.phone && <div className="field-success">{fieldHints.phone}</div>}
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEmail(v);
+                  setFieldErrors((prev) => {
+                    const localErr = validateLocalField('email', v);
+                    return { ...prev, email: localErr || prev.email || '' };
+                  });
+                }}
+                onBlur={() => handleBlur('email')}
+              />
+              {fieldErrors.email && <div className="field-error">{fieldErrors.email}</div>}
+              {!fieldErrors.email && fieldHints.email && <div className="field-success">{fieldHints.email}</div>}
+            </label>
+            <label>
+              Ghi chú
+              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+          </div>
         </div>
-        <label>
-          SĐT
-          <input
-            value={phone}
-            onChange={(e) => {
-              const v = e.target.value;
-              setPhone(v);
-              setFieldErrors((prev) => {
-                const localErr = validateLocalField('phone', v);
-                return { ...prev, phone: localErr || prev.phone || '' };
-              });
-            }}
-            onBlur={() => handleBlur('phone')}
-          />
-          {fieldErrors.phone && <div className="field-error">{fieldErrors.phone}</div>}
-          {!fieldErrors.phone && fieldHints.phone && <div className="field-success">{fieldHints.phone}</div>}
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => {
-              const v = e.target.value;
-              setEmail(v);
-              setFieldErrors((prev) => {
-                const localErr = validateLocalField('email', v);
-                return { ...prev, email: localErr || prev.email || '' };
-              });
-            }}
-            onBlur={() => handleBlur('email')}
-          />
-          {fieldErrors.email && <div className="field-error">{fieldErrors.email}</div>}
-          {!fieldErrors.email && fieldHints.email && <div className="field-success">{fieldHints.email}</div>}
-        </label>
-        <label>
-          Ghi chú
-          <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </label>
-        <button type="submit" className={'hm-btn hm-btn--primary' + (saving ? ' hm-btn--loading' : '')} disabled={saving}>
-          {saving ? 'Đang lưu…' : 'Tạo khách hàng'}
-        </button>
+
+        <div className="card form-section form-actions">
+          <div className="muted">Mẹo: nhập đúng số điện thoại/email để hệ thống kiểm tra trùng nhanh hơn.</div>
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <Link to="/customers" className="hm-btn hm-btn--ghost" style={{ textDecoration: 'none' }}>
+              Hủy
+            </Link>
+            <button type="submit" className={'hm-btn hm-btn--primary' + (saving ? ' hm-btn--loading' : '')} disabled={saving}>
+              {saving ? 'Đang lưu…' : 'Tạo khách hàng'}
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   );

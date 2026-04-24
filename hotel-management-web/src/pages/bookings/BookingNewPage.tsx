@@ -6,19 +6,11 @@ import { PageHeader } from '../../components/PageHeader';
 type Hotel = { hotelId: number; hotelName: string };
 type Room = { roomId: number; roomNumber: string; hotelId: number; statusCode?: string };
 type Customer = { customerId: number; fullName?: string | null; companyName?: string | null };
-type BookingRef = {
-  roomId: number;
-  hotelId: number;
-  checkInDate: string;
-  checkOutDate: string;
-  statusCode: string;
-};
 type Booking = { reservationId: number };
 
 export function BookingNewPage() {
   const navigate = useNavigate();
   const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -44,13 +36,11 @@ export function BookingNewPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const [h, r, c] = await Promise.all([
+        const [h, c] = await Promise.all([
           api.get<Hotel[]>('/api/hotels'),
-          api.get<Room[]>('/api/rooms'),
           api.get<Customer[]>('/api/customers', { params: { includeInactive: false } }),
         ]);
         setHotels(h.data);
-        setRooms(r.data);
         setCustomers(c.data);
         if (h.data.length) setFormHotelId(h.data[0].hotelId);
       } catch (e) {
@@ -74,39 +64,16 @@ export function BookingNewPage() {
       setError('');
       setSelectedRoom(null);
       setHasSearched(true);
-      const roomsByHotel = rooms.filter((r) => r.hotelId === formHotelId);
-
-      const { data: bookings } = await api.get<BookingRef[]>('/api/bookings', {
+      const { data } = await api.get<Room[]>('/api/rooms/available', {
         params: {
           hotelId: formHotelId,
-          statusCode: 'CONFIRMED',
-          pageSize: 500,
+          checkInDate: checkInDateStr,
+          checkOutDate: checkOutDateStr,
+          adults,
+          children: 0,
         },
       });
-      const { data: checkedInBookings } = await api.get<BookingRef[]>('/api/bookings', {
-        params: {
-          hotelId: formHotelId,
-          statusCode: 'CHECKED_IN',
-          pageSize: 500,
-        },
-      });
-      const activeBookings = [...bookings, ...checkedInBookings];
-      const from = new Date(checkInDateStr);
-      const to = new Date(checkOutDateStr);
-
-      const result = roomsByHotel.filter((room) => {
-        if (room.statusCode && (room.statusCode === 'OUT_OF_SERVICE' || room.statusCode === 'MAINTENANCE')) {
-          return false;
-        }
-        const hasOverlap = activeBookings.some((b) => {
-          if (b.roomId !== room.roomId) return false;
-          const bFrom = new Date(b.checkInDate);
-          const bTo = new Date(b.checkOutDate);
-          return from < bTo && to > bFrom;
-        });
-        return !hasOverlap;
-      });
-      setAvailableRooms(result);
+      setAvailableRooms(data);
     } catch (e) {
       setError(apiMessage(e));
     } finally {

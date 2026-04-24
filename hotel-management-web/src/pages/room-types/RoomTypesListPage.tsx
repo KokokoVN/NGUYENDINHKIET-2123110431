@@ -15,6 +15,7 @@ type RoomType = {
   description?: string | null;
   isActive: boolean;
 };
+type CascadeChildrenInfo = { rooms?: number };
 type Paged<T> = { items: T[]; page: number; pageSize: number; totalItems: number; totalPages: number };
 
 export function RoomTypesListPage() {
@@ -29,6 +30,7 @@ export function RoomTypesListPage() {
   const [maxBaseRate, setMaxBaseRate] = useState('');
 
   const [deleteTarget, setDeleteTarget] = useState<RoomType | null>(null);
+  const [cascadeTarget, setCascadeTarget] = useState<{ roomType: RoomType; children: CascadeChildrenInfo } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -94,6 +96,28 @@ export function RoomTypesListPage() {
       setDeleteTarget(null);
       await load();
       flashSuccess('Đã ngưng hoạt động loại phòng.');
+    } catch (err) {
+      const responseData = (err as { response?: { data?: { requiresConfirmation?: boolean; activeChildren?: CascadeChildrenInfo } } }).response?.data;
+      if (responseData?.requiresConfirmation) {
+        setDeleteTarget(null);
+        setCascadeTarget({ roomType: deleteTarget, children: responseData.activeChildren ?? {} });
+        return;
+      }
+      setError(apiMessage(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmCascadeDelete() {
+    if (!cascadeTarget) return;
+    try {
+      setDeleting(true);
+      setError('');
+      await api.delete(`/api/roomtypes/${cascadeTarget.roomType.roomTypeId}`, { params: { cascadeChildren: true } });
+      setCascadeTarget(null);
+      await load();
+      flashSuccess('Đã ngưng hoạt động loại phòng và toàn bộ phòng con.');
     } catch (err) {
       setError(apiMessage(err));
     } finally {
@@ -242,6 +266,16 @@ export function RoomTypesListPage() {
         loading={deleting}
         onCancel={() => !deleting && setDeleteTarget(null)}
         onConfirm={confirmDelete}
+      />
+      <ConfirmDialog
+        open={!!cascadeTarget}
+        title="Xác nhận ngưng toàn bộ phòng con?"
+        message={cascadeTarget ? `Loại «${cascadeTarget.roomType.roomTypeName}» còn ${cascadeTarget.children.rooms ?? 0} phòng đang hoạt động. Bạn có muốn ngưng tất cả không?` : ''}
+        confirmLabel="Ngưng tất cả"
+        danger
+        loading={deleting}
+        onCancel={() => !deleting && setCascadeTarget(null)}
+        onConfirm={confirmCascadeDelete}
       />
       <Pagination page={page} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} onPageChange={(p) => void load(p)} />
     </div>

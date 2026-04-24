@@ -156,15 +156,24 @@ public class RoomTypesController(HotelDbContext dbContext) : ControllerBase
     /// <summary>Xóa mềm: IsActive = false.</summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN,RECEPTION")]
-    public async Task<IActionResult> SoftDelete(int id)
+    public async Task<IActionResult> SoftDelete(int id, [FromQuery] bool cascadeChildren = false)
     {
         var roomType = await dbContext.RoomTypes.FirstOrDefaultAsync(rt => rt.RoomTypeId == id && rt.IsActive);
         if (roomType is null)
             return NotFound(new { message = "Không tìm thấy loại phòng để ngưng hoạt động." });
 
-        var hasActiveRooms = await dbContext.Rooms.AnyAsync(r => r.RoomTypeId == id && r.IsActive);
-        if (hasActiveRooms)
-            return BadRequest(new { message = "Không thể ngưng hoạt động loại phòng khi vẫn còn phòng đang gán loại này." });
+        var activeRooms = await dbContext.Rooms
+            .Where(r => r.RoomTypeId == id && r.IsActive)
+            .ToListAsync();
+        if (activeRooms.Count > 0 && !cascadeChildren)
+        {
+            return Conflict(new
+            {
+                message = "Loại phòng còn phòng đang hoạt động. Xác nhận để ngưng toàn bộ phòng thuộc loại này.",
+                requiresConfirmation = true,
+                activeChildren = new { rooms = activeRooms.Count }
+            });
+        }
 
         var before = new
         {
@@ -177,10 +186,24 @@ public class RoomTypesController(HotelDbContext dbContext) : ControllerBase
             roomType.IsActive
         };
 
+        if (cascadeChildren)
+        {
+            foreach (var room in activeRooms)
+            {
+                room.IsActive = false;
+                room.StatusCode = "OUT_OF_SERVICE";
+            }
+        }
+
         roomType.IsActive = false;
         await dbContext.SaveChangesAsync();
 
-        return Ok(new { message = "Ngưng hoạt động loại phòng thành công." });
+        return Ok(new
+        {
+            message = cascadeChildren
+                ? "Ngưng hoạt động loại phòng và toàn bộ phòng con thành công."
+                : "Ngưng hoạt động loại phòng thành công."
+        });
     }
 
     [HttpPut("{id:int}/restore")]
